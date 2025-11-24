@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Environments
+.venv/
+venv/
+.env
+.env.*
+
+# Notebooks
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# Data caches
+/data/raw/
+*.parquet
+*.csv
+*.feather
+
+# Logs and reports
+*.log
+reports/
+
+# MacOS
+.DS_Store

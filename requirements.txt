@@ -1,0 +1,9 @@
+arch>=6.3.0
+matplotlib>=3.8
+numpy>=1.26
+pandas>=2.2
+pyarrow>=15.0
+scipy>=1.11
+seaborn>=0.13
+statsmodels>=0.14
+yfinance>=0.2
