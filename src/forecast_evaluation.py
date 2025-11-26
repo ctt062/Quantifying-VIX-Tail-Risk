@@ -57,6 +57,22 @@ def log_score(actual: pd.Series, mean: pd.Series, variance: pd.Series) -> float:
     return float(ll.mean())
 
 
+def pointwise_log_scores(actual: pd.Series, mean: pd.Series, variance: pd.Series) -> pd.Series:
+    """Return per-date log scores to support cumulative loss visuals."""
+
+    mean = _ensure_series(mean, actual.index, "mean")
+    variance = _ensure_series(variance, actual.index, "var")
+    aligned = pd.concat([actual, mean, variance], axis=1).dropna()
+    aligned.columns = ["actual", "mean", "var"]
+    aligned["var"] = aligned["var"].clip(lower=config.PIT_CLIP_EPS)
+    ll = stats.norm.logpdf(
+        aligned["actual"],
+        loc=aligned["mean"],
+        scale=np.sqrt(aligned["var"]),
+    )
+    return pd.Series(ll, index=aligned.index, name="log_score")
+
+
 def coverage_rate(actual: pd.Series, mean: pd.Series, variance: pd.Series, level: float = 0.95) -> float:
     """Check empirical coverage of symmetric prediction intervals."""
 

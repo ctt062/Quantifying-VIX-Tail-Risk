@@ -120,7 +120,14 @@ def summarize_shocks(
     returns: pd.Series,
     log_vix: pd.Series,
     quantile: float,
-) -> tuple[shock_modeling.ShockDefinition, pd.DataFrame, shock_modeling.NHPPResult, dict]:
+) -> tuple[
+    shock_modeling.ShockDefinition,
+    pd.DataFrame,
+    shock_modeling.NHPPResult,
+    dict,
+    pd.Series,
+    shock_modeling.HPPResult,
+]:
     shock_def = shock_modeling.define_shocks(returns, quantile=quantile)
     interarrival = shock_modeling.interarrival_series(shock_def.indicator)
     hpp = shock_modeling.fit_hpp(interarrival)
@@ -135,7 +142,7 @@ def summarize_shocks(
         "hpp_ci_high": hpp.ci_95[1],
         "lag_coef": nhpp.result.params.get("lag_avg_log_vix", float("nan")),
     }
-    return shock_def, monthly, nhpp, summary
+    return shock_def, monthly, nhpp, summary, interarrival, hpp
 
 
 def run_shock_sensitivity(
@@ -146,7 +153,7 @@ def run_shock_sensitivity(
     rows = []
     for q in quantiles:
         try:
-            *_extras, summary = summarize_shocks(returns, log_vix, q)
+            _shock_def, _monthly, _nhpp, summary, _interarrival, _hpp = summarize_shocks(returns, log_vix, q)
         except ValueError as exc:
             print(f"Skipping quantile {q:.3f}: {exc}")
             continue
@@ -324,10 +331,24 @@ def main(
     egarch_fit = volatility_models.fit_egarch(returns, distribution=selected_dist)
     summary = volatility_models.summarize_fits(garch_fit, egarch_fit)
     print(summary)
+    visualization.plot_news_impact_curve(
+        egarch_fit["result"], save_as="news_impact.png"
+    )
+    visualization.plot_qq_std_resid(
+        garch_fit["result"].std_resid,
+        dist=selected_dist,
+        dof=garch_fit["result"].params.get("nu"),
+        save_as="qq.png",
+    )
+    visualization.plot_acf_comparison(
+        returns.pow(2),
+        garch_fit["result"].std_resid.pow(2),
+        save_as="acf.png",
+    )
 
     quantile_pct = shock_quantile * 100
     print(f"\nShock identification at {quantile_pct:.1f}th percentile...")
-    shock_def, monthly, nhpp, shock_summary = summarize_shocks(
+    shock_def, monthly, nhpp, shock_summary, interarrival, hpp = summarize_shocks(
         returns, df["log_vix"], shock_quantile
     )
     print(
@@ -338,6 +359,11 @@ def main(
     print(f"Lagged log VIX coefficient={shock_summary['lag_coef']:.4f}")
     print("\nNHPP summary:")
     print(nhpp.result.summary().tables[0])
+    visualization.plot_interarrival_hist(
+        interarrival,
+        rate_per_day=hpp.rate_per_day,
+        save_as="interarrival.png",
+    )
 
     print("\nRunning out-of-sample forecast evaluation...")
     ewma_full = forecast_evaluation.ewma_variance(returns)
@@ -359,9 +385,25 @@ def main(
     print("PIT summary (GARCH OOS):")
     print(metrics["pit_garch"].describe())
 
-    visualization.plot_vix_series(df, save_as="run_vix_series.png")
-    visualization.plot_shock_arrivals(monthly, save_as="run_shock_counts.png")
-    visualization.plot_pit(metrics["pit_garch"], save_as="run_pit.png")
+    visualization.plot_vix_series(
+        df,
+        shock_indicator=shock_def.indicator,
+        save_as="vix_series.png",
+    )
+    visualization.plot_shock_arrivals(monthly, save_as="shock_counts.png")
+    visualization.plot_pit(metrics["pit_garch"], save_as="pit.png")
+    garch_log_series = forecast_evaluation.pointwise_log_scores(
+        actual, comparison["garch_mean"], comparison["garch_var"]
+    )
+    ewma_log_series = forecast_evaluation.pointwise_log_scores(
+        actual, zero_mean, comparison["ewma_var"]
+    )
+    visualization.plot_cumulative_loss(
+        garch_log_series,
+        ewma_log_series,
+        labels=("GARCH", "EWMA"),
+        save_as="cum_loss_diff.png",
+    )
 
     loss_garch = forecast_evaluation.pit_log_loss(metrics["pit_garch"])
     loss_ewma = forecast_evaluation.pit_log_loss(metrics["pit_ewma"]).reindex(
