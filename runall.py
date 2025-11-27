@@ -120,6 +120,9 @@ def summarize_shocks(
     returns: pd.Series,
     log_vix: pd.Series,
     quantile: float,
+    conditional_vol: pd.Series | None = None,
+    use_vol_relative: bool = False,
+    vol_multiplier: float = 2.0,
 ) -> tuple[
     shock_modeling.ShockDefinition,
     pd.DataFrame,
@@ -128,7 +131,14 @@ def summarize_shocks(
     pd.Series,
     shock_modeling.HPPResult,
 ]:
-    shock_def = shock_modeling.define_shocks(returns, quantile=quantile)
+    # Choose shock definition method
+    if use_vol_relative and conditional_vol is not None:
+        shock_def = shock_modeling.define_shocks_volatility_relative(
+            returns, conditional_vol, multiplier=vol_multiplier
+        )
+    else:
+        shock_def = shock_modeling.define_shocks(returns, quantile=quantile)
+
     interarrival = shock_modeling.interarrival_series(shock_def.indicator)
     hpp = shock_modeling.fit_hpp(interarrival)
     monthly = shock_modeling.monthly_counts(shock_def.indicator, log_vix)
@@ -141,6 +151,7 @@ def summarize_shocks(
         "hpp_ci_low": hpp.ci_95[0],
         "hpp_ci_high": hpp.ci_95[1],
         "lag_coef": nhpp.result.params.get("lag_avg_log_vix", float("nan")),
+        "method": shock_def.method,
     }
     return shock_def, monthly, nhpp, summary, interarrival, hpp
 
@@ -313,7 +324,11 @@ def main(
     if not 0 < shock_quantile < 1:
         raise ValueError("Shock quantile must lie in (0, 1).")
 
-    print("Preparing VIX series...")
+    print("=" * 70)
+    print("VIX SHOCK PERSISTENCE & FREQUENCY ANALYSIS")
+    print("=" * 70)
+
+    print("\n[1/8] Preparing VIX series...")
     vix_data = data_pipeline.prepare_series()
     df = data_pipeline.engineer_features(vix_data.frame)
     returns = df["dlog_vix"].dropna()
@@ -322,18 +337,40 @@ def main(
         f" to {df.index.max().date()}"
     )
 
-    print("\nSelecting GARCH distribution via PIT diagnostics...")
+    # =========================================================================
+    # VOLATILITY MODELS COMPARISON (GARCH, EGARCH, GJR-GARCH)
+    # =========================================================================
+    print("\n[2/8] Fitting volatility models...")
+    print("-" * 50)
+
+    print("Selecting optimal distribution via PIT diagnostics...")
     selected_dist, garch_fit = volatility_models.select_garch_distribution(returns)
     print(
-        f"Chosen distribution: {selected_dist}"
+        f"  Chosen distribution: {selected_dist}"
         f" (PIT KS={garch_fit.get('pit_stat', float('nan')):.4f})"
     )
+
     egarch_fit = volatility_models.fit_egarch(returns, distribution=selected_dist)
-    summary = volatility_models.summarize_fits(garch_fit, egarch_fit)
-    print(summary)
-    visualization.plot_news_impact_curve(
-        egarch_fit["result"], save_as="news_impact.png"
-    )
+    gjr_fit = volatility_models.fit_gjr_garch(returns, distribution=selected_dist)
+
+    print(f"\n  GJR-GARCH leverage effect (γ): {gjr_fit['leverage_effect']:.4f}")
+    if gjr_fit['leverage_effect'] > 0:
+        print("    → Negative shocks increase volatility more than positive shocks")
+
+    # HAR-RV model
+    print("\nFitting HAR-RV model...")
+    har_fit = volatility_models.fit_har_rv(returns)
+    print(f"  HAR-RV R²: {har_fit['r_squared']:.4f}")
+    print(f"  Coefficients: β_daily={har_fit['coefficients'].get('rv_d_lag', 0):.4f}, "
+          f"β_weekly={har_fit['coefficients'].get('rv_w_lag', 0):.4f}, "
+          f"β_monthly={har_fit['coefficients'].get('rv_m_lag', 0):.4f}")
+
+    # Model comparison summary
+    summary = volatility_models.summarize_fits(garch_fit, egarch_fit, gjr_fit)
+    print("\nVolatility Model Comparison:")
+    print(summary.to_string(index=False))
+
+    visualization.plot_news_impact_curve(egarch_fit["result"], save_as="news_impact.png")
     visualization.plot_qq_std_resid(
         garch_fit["result"].std_resid,
         dist=selected_dist,
@@ -345,29 +382,94 @@ def main(
         garch_fit["result"].std_resid.pow(2),
         save_as="acf.png",
     )
+    visualization.plot_model_comparison(summary, save_as="model_comparison.png")
 
+    # =========================================================================
+    # SHOCK IDENTIFICATION (Quantile-based AND Volatility-relative)
+    # =========================================================================
     quantile_pct = shock_quantile * 100
-    print(f"\nShock identification at {quantile_pct:.1f}th percentile...")
+    print(f"\n[3/8] Shock identification...")
+    print("-" * 50)
+
+    # Standard quantile-based shocks
+    print(f"Method 1: Quantile-based ({quantile_pct:.1f}th percentile)")
     shock_def, monthly, nhpp, shock_summary, interarrival, hpp = summarize_shocks(
         returns, df["log_vix"], shock_quantile
     )
     print(
-        f"Threshold={shock_summary['threshold']:.4f}, shocks={shock_summary['count']},"
+        f"  Threshold={shock_summary['threshold']:.4f}, shocks={shock_summary['count']},"
         f" HPP rate/year={shock_summary['hpp_rate']:.2f}"
         f" (95% CI {shock_summary['hpp_ci_low']:.2f}-{shock_summary['hpp_ci_high']:.2f})"
     )
-    print(f"Lagged log VIX coefficient={shock_summary['lag_coef']:.4f}")
-    print("\nNHPP summary:")
-    print(nhpp.result.summary().tables[0])
+
+    # Volatility-relative shocks
+    conditional_vol = garch_fit["result"].conditional_volatility / 100.0
+    print(f"\nMethod 2: Volatility-relative (|r_t| > 2σ_t)")
+    shock_def_vol, monthly_vol, nhpp_vol, shock_summary_vol, interarrival_vol, hpp_vol = summarize_shocks(
+        returns, df["log_vix"], shock_quantile,
+        conditional_vol=conditional_vol,
+        use_vol_relative=True,
+        vol_multiplier=2.0,
+    )
+    print(
+        f"  Avg threshold={shock_summary_vol['threshold']:.4f}, shocks={shock_summary_vol['count']},"
+        f" HPP rate/year={shock_summary_vol['hpp_rate']:.2f}"
+    )
+
+    print(f"\nNHPP lagged log VIX coefficient: {shock_summary['lag_coef']:.4f}")
+
     visualization.plot_interarrival_hist(
         interarrival,
         rate_per_day=hpp.rate_per_day,
         save_as="interarrival.png",
     )
 
-    print("\nRunning out-of-sample forecast evaluation...")
+    # =========================================================================
+    # HAWKES SELF-EXCITING PROCESS
+    # =========================================================================
+    print(f"\n[4/8] Fitting Hawkes self-exciting process...")
+    print("-" * 50)
+
+    try:
+        hawkes = shock_modeling.fit_hawkes(shock_def.indicator)
+        print(f"  Baseline intensity (μ): {hawkes.mu:.4f} shocks/day")
+        print(f"  Excitation magnitude (α): {hawkes.alpha:.4f}")
+        print(f"  Decay rate (β): {hawkes.beta:.4f}")
+        print(f"  Branching ratio (α/β): {hawkes.branching_ratio:.3f}")
+        print(f"  Excitation half-life: {hawkes.half_life:.1f} days")
+
+        if hawkes.branching_ratio < 1:
+            print("    → Process is stationary (clustering decays over time)")
+        else:
+            print("    → WARNING: Branching ratio ≥ 1 suggests explosive clustering")
+
+        hawkes_intensity = shock_modeling.hawkes_simulate_intensity(shock_def.indicator, hawkes)
+        visualization.plot_hawkes_intensity(shock_def.indicator, hawkes_intensity, save_as="hawkes_intensity.png")
+    except ValueError as e:
+        print(f"  Could not fit Hawkes process: {e}")
+
+    # =========================================================================
+    # REGIME ANALYSIS
+    # =========================================================================
+    print(f"\n[5/8] Regime analysis...")
+    print("-" * 50)
+
+    regime_df = shock_modeling.run_regime_analysis(returns, shock_def.indicator)
+    if not regime_df.empty:
+        print("\nShock Characteristics by Market Regime:")
+        print(regime_df.to_string(index=False))
+        visualization.plot_regime_comparison(regime_df, save_as="regime_comparison.png")
+
+    # =========================================================================
+    # OUT-OF-SAMPLE FORECAST EVALUATION
+    # =========================================================================
+    print("\n[6/8] Out-of-sample forecast evaluation...")
+    print("-" * 50)
+
     ewma_full = forecast_evaluation.ewma_variance(returns)
     roll_full = forecast_evaluation.rolling_variance(returns)
+    har_var = volatility_models.har_rv_forecast(returns, har_fit)
+
     garch_oos = run_out_of_sample_garch(
         returns,
         split_date=split_date,
@@ -380,18 +482,25 @@ def main(
         returns, garch_oos, ewma_full, roll_full
     )
     metrics = evaluate_forecasts(actual, comparison, zero_mean)
-    print("Log-score comparison (OOS):", metrics["scores"])
-    print(f"95% coverage (OOS GARCH): {metrics['coverage']:.3f}")
-    print("PIT summary (GARCH OOS):")
-    print(metrics["pit_garch"].describe())
 
-    visualization.plot_vix_series(
-        df,
-        shock_indicator=shock_def.indicator,
-        save_as="vix_series.png",
-    )
+    # Add HAR-RV scores
+    har_aligned = har_var.reindex(comparison.index).dropna()
+    if len(har_aligned) > 0:
+        har_log_score = forecast_evaluation.log_score(
+            actual.loc[har_aligned.index], zero_mean.loc[har_aligned.index], har_aligned
+        )
+        metrics["scores"]["har_log"] = har_log_score
+
+    print("\nLog-score comparison (OOS) - higher is better:")
+    for model, score in metrics["scores"].items():
+        print(f"  {model}: {score:.4f}")
+
+    print(f"\n95% coverage (OOS GARCH): {metrics['coverage']:.3f}")
+
+    visualization.plot_vix_series(df, shock_indicator=shock_def.indicator, save_as="vix_series.png")
     visualization.plot_shock_arrivals(monthly, save_as="shock_counts.png")
     visualization.plot_pit(metrics["pit_garch"], save_as="pit.png")
+
     garch_log_series = forecast_evaluation.pointwise_log_scores(
         actual, comparison["garch_mean"], comparison["garch_var"]
     )
@@ -399,18 +508,31 @@ def main(
         actual, zero_mean, comparison["ewma_var"]
     )
     visualization.plot_cumulative_loss(
-        garch_log_series,
-        ewma_log_series,
+        garch_log_series, ewma_log_series,
         labels=("GARCH", "EWMA"),
         save_as="cum_loss_diff.png",
     )
 
+    # =========================================================================
+    # STATISTICAL TESTS
+    # =========================================================================
+    print(f"\n[7/8] Statistical tests...")
+    print("-" * 50)
+
     loss_garch = forecast_evaluation.pit_log_loss(metrics["pit_garch"])
-    loss_ewma = forecast_evaluation.pit_log_loss(metrics["pit_ewma"]).reindex(
-        loss_garch.index
-    )
+    loss_ewma = forecast_evaluation.pit_log_loss(metrics["pit_ewma"]).reindex(loss_garch.index)
     dm_p = forecast_evaluation.diebold_mariano(loss_garch, loss_ewma)
-    print(f"Diebold-Mariano p-value (log PIT loss vs EWMA): {dm_p}")
+    print(f"Diebold-Mariano p-value (GARCH vs EWMA): {dm_p:.4f}")
+    if dm_p < 0.05:
+        print("  → GARCH significantly outperforms EWMA at 5% level")
+    else:
+        print("  → No significant difference between models")
+
+    # =========================================================================
+    # SENSITIVITY ANALYSIS
+    # =========================================================================
+    print(f"\n[8/8] Sensitivity analysis...")
+    print("-" * 50)
 
     if shock_quantile_grid:
         sweep_values = [q for q in shock_quantile_grid if 0 < q < 1]
@@ -419,14 +541,47 @@ def main(
 
     if split_date_grid:
         run_split_sensitivity(
-            returns,
-            ewma_full,
-            roll_full,
-            selected_dist,
-            split_date_grid,
-            split_fraction,
-            refit_frequency,
+            returns, ewma_full, roll_full, selected_dist,
+            split_date_grid, split_fraction, refit_frequency,
         )
+
+    # =========================================================================
+    # ECONOMIC INTERPRETATION
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("ECONOMIC INTERPRETATION")
+    print("=" * 70)
+
+    print("""
+Key Findings:
+-------------
+1. VOLATILITY PERSISTENCE:
+   - GARCH persistence measures how long volatility shocks take to decay
+   - High persistence (>0.95) indicates long memory in volatility
+   - Half-life shows median reversion time to long-run volatility
+
+2. LEVERAGE EFFECT (GJR-GARCH):
+   - Positive gamma indicates negative returns increase volatility more
+   - This asymmetry is crucial for risk management and option pricing
+
+3. SHOCK CLUSTERING (Hawkes Process):
+   - Branching ratio < 1: shocks trigger more shocks but decay over time
+   - High alpha: strong initial excitation after each shock
+   - Low beta: slow decay of excitation (prolonged clustering)
+
+4. REGIME DEPENDENCE:
+   - Crisis periods show elevated shock rates and volatility
+   - Risk models should account for regime-switching behavior
+
+5. PRACTICAL IMPLICATIONS:
+   - Use EGARCH/GJR-GARCH for asymmetric volatility modeling
+   - Hawkes process captures self-excitation in shock arrivals
+   - Volatility-relative shocks provide cleaner 'surprise' identification
+""")
+
+    print("\n" + "=" * 70)
+    print("Analysis complete. Figures saved to figures/")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

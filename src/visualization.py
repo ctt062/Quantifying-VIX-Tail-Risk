@@ -200,3 +200,90 @@ def plot_acf_comparison(
     fig.tight_layout()
     _save(fig, save_as)
     return fig
+
+
+def plot_hawkes_intensity(
+    shock_indicator: pd.Series,
+    intensity: pd.Series,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Plot Hawkes self-exciting intensity with shock events."""
+
+    fig, ax = plt.subplots(figsize=(11, 4))
+
+    # Plot intensity
+    ax.plot(intensity.index, intensity, color="#1f77b4", linewidth=1, label="Hawkes Intensity")
+
+    # Mark shock events
+    shock_dates = shock_indicator[shock_indicator == 1].index
+    shock_intensities = intensity.loc[shock_dates]
+    ax.scatter(shock_dates, shock_intensities, color="red", s=20, alpha=0.7, label="Shocks", zorder=5)
+
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Intensity (λ)")
+    ax.set_title("Hawkes Self-Exciting Process Intensity")
+    ax.legend()
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
+
+
+def plot_regime_comparison(
+    regime_df: pd.DataFrame,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Bar chart comparing shock rates across market regimes."""
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+    regimes = regime_df["Regime"].tolist()
+    x = np.arange(len(regimes))
+
+    # Shock rate comparison
+    axes[0].bar(x, regime_df["Rate/Year"], color="#2ca02c", alpha=0.8)
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels(regimes, rotation=30, ha="right")
+    axes[0].set_ylabel("Shocks per Year")
+    axes[0].set_title("Shock Rate by Regime")
+
+    # Volatility comparison
+    axes[1].bar(x, regime_df["Ann. Vol"], color="#ff7f0e", alpha=0.8)
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(regimes, rotation=30, ha="right")
+    axes[1].set_ylabel("Annualized Volatility")
+    axes[1].set_title("Volatility by Regime")
+
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
+
+
+def plot_model_comparison(
+    model_summary: pd.DataFrame,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Bar chart comparing AIC/BIC across volatility models."""
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+    models = model_summary["model"].tolist()
+    x = np.arange(len(models))
+    width = 0.35
+
+    # AIC comparison
+    axes[0].bar(x, model_summary["aic"], width, color="#1f77b4", label="AIC")
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels(models)
+    axes[0].set_ylabel("AIC")
+    axes[0].set_title("Model Comparison - AIC (lower is better)")
+
+    # BIC comparison
+    axes[1].bar(x, model_summary["bic"], width, color="#ff7f0e", label="BIC")
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(models)
+    axes[1].set_ylabel("BIC")
+    axes[1].set_title("Model Comparison - BIC (lower is better)")
+
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
