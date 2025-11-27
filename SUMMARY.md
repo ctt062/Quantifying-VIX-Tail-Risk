@@ -53,7 +53,42 @@ _Date generated: 2025-11-27_
 
 **Interpretation:** Shocks trigger more shocks but the process is stationary; ~23% of shocks are "triggered" by previous shocks.
 
-## 5. Regime Analysis
+## 5. Compound Poisson Process
+
+### Model Overview
+Models **both** shock timing (Poisson arrivals) AND magnitude (jump sizes):
+$$S(T) = \sum_{i=1}^{N(T)} J_i, \quad N(T) \sim \text{Poisson}(\lambda T)$$
+
+### Jump Distribution Selection
+| Distribution | AIC | KS Stat | Selected |
+| --- | --- | --- | --- |
+| Exponential | - | - | No |
+| Gamma | - | - | No |
+| Lognormal | - | - | No |
+| **Pareto** | Best | 0.061 | **Yes** |
+| Weibull | - | - | No |
+
+### Fitted Parameters (Full Sample)
+| Parameter | Value | Interpretation |
+| --- | --- | --- |
+| λ (arrival rate) | 12.64/year | Expected shocks per year |
+| E[J] (mean jump) | 0.211 | 21.1% average log-move |
+| Std[J] | 0.189 | Jump size volatility |
+| E[S] = λ × E[J] | 2.67/year | Expected annual impact |
+| VaR (95%) | 4.24 | 95th percentile annual impact |
+| CVaR (95%) | 5.01 | Expected Shortfall |
+
+### CPP by Regime
+| Regime | λ/Year | E[J] | E[S]/Year | VaR 95% | CVaR 95% |
+| --- | --- | --- | --- | --- | --- |
+| Pre-Crisis | 12.3 | 0.209 | 2.57 | 4.15 | 4.92 |
+| **COVID** | **17.3** | **0.262** | **4.53** | **7.44** | **9.65** |
+| Post-COVID | 11.6 | 0.188 | 2.19 | 3.44 | 3.85 |
+| Recent | 13.6 | 0.216 | 2.95 | 4.70 | 5.63 |
+
+**Key Finding:** COVID period shows 76% higher expected annual impact (4.53 vs 2.57) due to both higher arrival rate AND larger jumps.
+
+## 6. Regime Analysis
 
 | Regime | Period | Obs | Shocks | Rate/Year | Ann. Vol |
 | --- | --- | --- | --- | --- | --- |
@@ -65,7 +100,7 @@ _Date generated: 2025-11-27_
 
 **Key Finding:** COVID period shows 41% higher shock rate than baseline (17.3 vs 12.3/year).
 
-## 6. Forecast Evaluation (Out-of-Sample)
+## 7. Forecast Evaluation (Out-of-Sample)
 
 ### Training/Test Split
 - **Training:** 3,111 obs through 2021-12-07
@@ -86,7 +121,7 @@ _Date generated: 2025-11-27_
 - **PIT Std:** ~0.26 (ideal: 0.29)
 - **Diebold–Mariano p-value:** <0.001 (GARCH vs EWMA significant)
 
-## 7. Visual Verification
+## 8. Visual Verification
 | Figure | Status | Notes |
 | --- | --- | --- |
 | `vix_series.png` | ✓ | VIX path with shock markers |
@@ -100,19 +135,25 @@ _Date generated: 2025-11-27_
 | `hawkes_intensity.png` | ✓ | Intensity spikes around shocks |
 | `regime_comparison.png` | ✓ | COVID clearly elevated |
 | `model_comparison.png` | ✓ | EGARCH best by AIC/BIC |
+| `jump_distribution.png` | ✓ | Pareto fit to shock magnitudes |
+| `cpp_paths.png` | ✓ | Monte Carlo simulation paths |
+| `cpp_var.png` | ✓ | VaR/CVaR distribution |
+| `cpp_regime.png` | ✓ | Regime-specific CPP comparison |
+| `shock_magnitudes.png` | ✓ | Shock magnitudes over time |
 
-## 8. Unit Test Suite
+## 9. Unit Test Suite
 - **Location:** `tests/test_models.py`
-- **Tests:** 23 tests across 8 test classes
-- **Coverage:** GARCH, HAR-RV, shock definitions, Hawkes, regime analysis, forecasting
-- **Status:** All passing (3.5s runtime)
+- **Tests:** 28 tests across 9 test classes
+- **Coverage:** GARCH, HAR-RV, shock definitions, Hawkes, CPP, regime analysis, forecasting
+- **Status:** All passing
 
-## 9. Key Conclusions
+## 10. Key Conclusions
 1. **EGARCH** provides best in-sample fit; captures ~10-day half-life for volatility shocks.
 2. **GJR-GARCH** confirms leverage effect (negative γ).
 3. **Hawkes process** reveals shock clustering with ~23% branching ratio.
-4. **COVID regime** shows significantly elevated shock rate.
-5. **EWMA beats GARCH** on log-score OOS, but calibration is acceptable for both.
+4. **Compound Poisson Process** shows Pareto-distributed jumps with VaR 95% = 4.24/year.
+5. **COVID regime** shows 76% higher expected annual impact (E[S]=4.53 vs 2.57).
+6. **EWMA beats GARCH** on log-score OOS, but calibration is acceptable for both.
 
 ## 10. Recommendations
 1. Consider regime-switching GARCH for adaptive modeling.

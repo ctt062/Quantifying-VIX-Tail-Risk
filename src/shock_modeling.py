@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -42,6 +42,23 @@ class HawkesResult:
     branching_ratio: float  # alpha/beta - measures clustering
     log_likelihood: float
     half_life: float    # ln(2)/beta - time for excitation to halve
+
+
+@dataclass
+class CompoundPoissonResult:
+    """Results from Compound Poisson Process modeling."""
+    arrival_rate: float          # λ: shocks per day
+    arrival_rate_annual: float   # λ × 252: shocks per year
+    jump_distribution: str       # Name of fitted distribution
+    jump_params: Dict            # Distribution parameters
+    mean_jump: float             # E[J]: expected jump size
+    std_jump: float              # Std[J]: jump size standard deviation
+    expected_annual_impact: float  # E[S] = λ × E[J] × 252
+    var_95: float                # 95% VaR from simulation
+    cvar_95: float               # 95% CVaR (Expected Shortfall)
+    aic: float                   # Akaike Information Criterion
+    ks_statistic: float          # Kolmogorov-Smirnov test statistic
+    ks_pvalue: float             # KS test p-value
 
 
 def define_shocks(
@@ -390,3 +407,389 @@ def run_regime_analysis(
             continue
 
     return pd.DataFrame(results)
+
+
+# ---------------------------------------------------------------------------
+# Compound Poisson Process
+# ---------------------------------------------------------------------------
+
+
+def _fit_jump_distribution(
+    jump_sizes: np.ndarray,
+    distribution: str,
+) -> Tuple[Dict, float, float, float]:
+    """Fit a specific distribution to jump sizes and return params + fit statistics."""
+    
+    n = len(jump_sizes)
+    
+    if distribution == "exponential":
+        # MLE for exponential: scale = mean
+        scale = np.mean(jump_sizes)
+        params = {"scale": scale}
+        log_likelihood = np.sum(stats.expon.logpdf(jump_sizes, scale=scale))
+        n_params = 1
+        
+    elif distribution == "gamma":
+        # Fit gamma distribution
+        shape, loc, scale = stats.gamma.fit(jump_sizes, floc=0)
+        params = {"shape": shape, "scale": scale}
+        log_likelihood = np.sum(stats.gamma.logpdf(jump_sizes, shape, loc=0, scale=scale))
+        n_params = 2
+        
+    elif distribution == "lognormal":
+        # Fit lognormal distribution
+        log_jumps = np.log(jump_sizes[jump_sizes > 0])
+        if len(log_jumps) < 2:
+            return {}, -np.inf, np.inf, np.inf
+        mu = np.mean(log_jumps)
+        sigma = np.std(log_jumps, ddof=1)
+        params = {"mu": mu, "sigma": sigma}
+        log_likelihood = np.sum(stats.lognorm.logpdf(jump_sizes, s=sigma, scale=np.exp(mu)))
+        n_params = 2
+        
+    elif distribution == "pareto":
+        # Fit Pareto distribution (for heavy tails)
+        xmin = np.min(jump_sizes)
+        if xmin <= 0:
+            xmin = 1e-6
+        # MLE for Pareto shape parameter
+        alpha_pareto = n / np.sum(np.log(jump_sizes / xmin))
+        params = {"alpha": alpha_pareto, "xmin": xmin}
+        log_likelihood = np.sum(stats.pareto.logpdf(jump_sizes, alpha_pareto, scale=xmin))
+        n_params = 2
+        
+    elif distribution == "weibull":
+        # Fit Weibull distribution
+        shape, loc, scale = stats.weibull_min.fit(jump_sizes, floc=0)
+        params = {"shape": shape, "scale": scale}
+        log_likelihood = np.sum(stats.weibull_min.logpdf(jump_sizes, shape, loc=0, scale=scale))
+        n_params = 2
+        
+    else:
+        raise ValueError(f"Unknown distribution: {distribution}")
+    
+    # Compute AIC
+    aic = 2 * n_params - 2 * log_likelihood
+    
+    # Compute KS statistic
+    if distribution == "exponential":
+        ks_stat, ks_pval = stats.kstest(jump_sizes, "expon", args=(0, params["scale"]))
+    elif distribution == "gamma":
+        ks_stat, ks_pval = stats.kstest(jump_sizes, "gamma", args=(params["shape"], 0, params["scale"]))
+    elif distribution == "lognormal":
+        ks_stat, ks_pval = stats.kstest(jump_sizes, "lognorm", args=(params["sigma"], 0, np.exp(params["mu"])))
+    elif distribution == "pareto":
+        ks_stat, ks_pval = stats.kstest(jump_sizes, "pareto", args=(params["alpha"], 0, params["xmin"]))
+    elif distribution == "weibull":
+        ks_stat, ks_pval = stats.kstest(jump_sizes, "weibull_min", args=(params["shape"], 0, params["scale"]))
+    else:
+        ks_stat, ks_pval = np.nan, np.nan
+    
+    return params, log_likelihood, aic, ks_stat, ks_pval
+
+
+def _compute_jump_moments(distribution: str, params: Dict) -> Tuple[float, float]:
+    """Compute mean and standard deviation for a fitted jump distribution."""
+    
+    if distribution == "exponential":
+        mean = params["scale"]
+        std = params["scale"]
+        
+    elif distribution == "gamma":
+        mean = params["shape"] * params["scale"]
+        std = np.sqrt(params["shape"]) * params["scale"]
+        
+    elif distribution == "lognormal":
+        mu, sigma = params["mu"], params["sigma"]
+        mean = np.exp(mu + sigma**2 / 2)
+        std = mean * np.sqrt(np.exp(sigma**2) - 1)
+        
+    elif distribution == "pareto":
+        alpha = params["alpha"]
+        xmin = params["xmin"]
+        if alpha > 1:
+            mean = (alpha * xmin) / (alpha - 1)
+        else:
+            mean = np.inf
+        if alpha > 2:
+            var = (xmin**2 * alpha) / ((alpha - 1)**2 * (alpha - 2))
+            std = np.sqrt(var)
+        else:
+            std = np.inf
+            
+    elif distribution == "weibull":
+        shape, scale = params["shape"], params["scale"]
+        mean = scale * np.exp(np.math.lgamma(1 + 1/shape))
+        var = scale**2 * (np.exp(np.math.lgamma(1 + 2/shape)) - np.exp(2*np.math.lgamma(1 + 1/shape)))
+        std = np.sqrt(max(var, 0))
+        
+    else:
+        mean, std = np.nan, np.nan
+    
+    return mean, std
+
+
+def _sample_from_distribution(distribution: str, params: Dict, n_samples: int) -> np.ndarray:
+    """Sample from a fitted jump distribution."""
+    
+    if distribution == "exponential":
+        return np.random.exponential(scale=params["scale"], size=n_samples)
+        
+    elif distribution == "gamma":
+        return np.random.gamma(shape=params["shape"], scale=params["scale"], size=n_samples)
+        
+    elif distribution == "lognormal":
+        return np.random.lognormal(mean=params["mu"], sigma=params["sigma"], size=n_samples)
+        
+    elif distribution == "pareto":
+        return (np.random.pareto(params["alpha"], size=n_samples) + 1) * params["xmin"]
+        
+    elif distribution == "weibull":
+        return params["scale"] * np.random.weibull(params["shape"], size=n_samples)
+        
+    else:
+        raise ValueError(f"Unknown distribution: {distribution}")
+
+
+def fit_compound_poisson(
+    returns: pd.Series,
+    shock_indicator: pd.Series,
+    candidate_distributions: List[str] = None,
+    n_simulations: int = 10000,
+) -> CompoundPoissonResult:
+    """Fit a Compound Poisson Process to shock arrivals and magnitudes.
+    
+    The Compound Poisson Process models:
+    - N(t) ~ Poisson(λt): number of shocks by time t
+    - J_i ~ F: jump sizes drawn from distribution F
+    - S(t) = Σ_{i=1}^{N(t)} J_i: cumulative shock impact
+    
+    Parameters
+    ----------
+    returns : pd.Series
+        Return series (log returns)
+    shock_indicator : pd.Series
+        Binary indicator of shock occurrences
+    candidate_distributions : List[str]
+        Distributions to try for jump sizes. Default: exponential, gamma, lognormal, pareto
+    n_simulations : int
+        Number of Monte Carlo simulations for VaR/CVaR
+        
+    Returns
+    -------
+    CompoundPoissonResult with fitted parameters and risk metrics
+    """
+    if candidate_distributions is None:
+        candidate_distributions = ["exponential", "gamma", "lognormal", "pareto", "weibull"]
+    
+    # Extract shock times and magnitudes
+    shock_dates = shock_indicator[shock_indicator == 1].index
+    shock_magnitudes = np.abs(returns.loc[shock_dates].values)
+    
+    if len(shock_magnitudes) < 10:
+        raise ValueError("Need at least 10 shocks to fit Compound Poisson Process")
+    
+    # Remove any zero or negative values (shouldn't happen but safety check)
+    shock_magnitudes = shock_magnitudes[shock_magnitudes > 0]
+    
+    # Compute arrival rate (HPP)
+    n_shocks = len(shock_magnitudes)
+    n_days = len(shock_indicator)
+    arrival_rate = n_shocks / n_days
+    arrival_rate_annual = arrival_rate * 252
+    
+    # Fit candidate distributions and select best by AIC
+    best_dist = None
+    best_aic = np.inf
+    best_params = {}
+    best_ks_stat = np.nan
+    best_ks_pval = np.nan
+    
+    for dist in candidate_distributions:
+        try:
+            params, ll, aic, ks_stat, ks_pval = _fit_jump_distribution(shock_magnitudes, dist)
+            if aic < best_aic:
+                best_aic = aic
+                best_dist = dist
+                best_params = params
+                best_ks_stat = ks_stat
+                best_ks_pval = ks_pval
+        except Exception:
+            continue
+    
+    if best_dist is None:
+        raise ValueError("Could not fit any distribution to jump sizes")
+    
+    # Compute jump moments
+    mean_jump, std_jump = _compute_jump_moments(best_dist, best_params)
+    
+    # Expected annual impact: E[S] = λ × E[J] × 252
+    expected_annual_impact = arrival_rate * mean_jump * 252
+    
+    # Monte Carlo simulation for VaR/CVaR
+    np.random.seed(42)  # For reproducibility
+    annual_impacts = []
+    
+    for _ in range(n_simulations):
+        # Simulate number of shocks in a year
+        n_annual_shocks = np.random.poisson(arrival_rate_annual)
+        
+        if n_annual_shocks > 0:
+            # Simulate jump sizes
+            jumps = _sample_from_distribution(best_dist, best_params, n_annual_shocks)
+            total_impact = np.sum(jumps)
+        else:
+            total_impact = 0
+        
+        annual_impacts.append(total_impact)
+    
+    annual_impacts = np.array(annual_impacts)
+    
+    # Compute VaR and CVaR at 95% level
+    var_95 = np.percentile(annual_impacts, 95)
+    cvar_95 = np.mean(annual_impacts[annual_impacts >= var_95])
+    
+    return CompoundPoissonResult(
+        arrival_rate=arrival_rate,
+        arrival_rate_annual=arrival_rate_annual,
+        jump_distribution=best_dist,
+        jump_params=best_params,
+        mean_jump=mean_jump,
+        std_jump=std_jump,
+        expected_annual_impact=expected_annual_impact,
+        var_95=var_95,
+        cvar_95=cvar_95,
+        aic=best_aic,
+        ks_statistic=best_ks_stat,
+        ks_pvalue=best_ks_pval,
+    )
+
+
+def compound_poisson_by_regime(
+    returns: pd.Series,
+    shock_indicator: pd.Series,
+    regimes: List[Tuple[str, str, str]] = None,
+) -> pd.DataFrame:
+    """Fit Compound Poisson Process separately for each market regime.
+    
+    Parameters
+    ----------
+    returns : pd.Series
+        Return series
+    shock_indicator : pd.Series
+        Binary shock indicator
+    regimes : List of (name, start_date, end_date) tuples
+    
+    Returns
+    -------
+    DataFrame with CPP parameters for each regime
+    """
+    if regimes is None:
+        regimes = [
+            ("Pre-Crisis", "2010-01-01", "2019-12-31"),
+            ("COVID", "2020-01-01", "2020-12-31"),
+            ("Post-COVID", "2021-01-01", "2023-12-31"),
+            ("Recent", "2024-01-01", "2025-12-31"),
+        ]
+    
+    results = []
+    for name, start, end in regimes:
+        start_ts = pd.Timestamp(start)
+        end_ts = pd.Timestamp(end)
+        mask = (returns.index >= start_ts) & (returns.index <= end_ts)
+        
+        regime_returns = returns[mask]
+        regime_shocks = shock_indicator[mask]
+        
+        if regime_shocks.sum() < 5:
+            continue
+        
+        try:
+            cpp = fit_compound_poisson(regime_returns, regime_shocks)
+            results.append({
+                "Regime": name,
+                "λ/Year": cpp.arrival_rate_annual,
+                "Jump Dist": cpp.jump_distribution,
+                "E[J]": cpp.mean_jump,
+                "Std[J]": cpp.std_jump,
+                "E[S]/Year": cpp.expected_annual_impact,
+                "VaR 95%": cpp.var_95,
+                "CVaR 95%": cpp.cvar_95,
+            })
+        except Exception:
+            continue
+    
+    return pd.DataFrame(results)
+
+
+def simulate_compound_poisson_paths(
+    cpp_result: CompoundPoissonResult,
+    n_paths: int = 1000,
+    horizon_days: int = 252,
+    dt: float = 1.0,
+) -> np.ndarray:
+    """Simulate sample paths of the cumulative shock process.
+    
+    Parameters
+    ----------
+    cpp_result : CompoundPoissonResult
+        Fitted CPP parameters
+    n_paths : int
+        Number of paths to simulate
+    horizon_days : int
+        Simulation horizon in days
+    dt : float
+        Time step (default 1 day)
+        
+    Returns
+    -------
+    Array of shape (n_paths, horizon_days) with cumulative impact paths
+    """
+    np.random.seed(42)
+    n_steps = int(horizon_days / dt)
+    paths = np.zeros((n_paths, n_steps))
+    
+    for i in range(n_paths):
+        cumulative = 0
+        for t in range(n_steps):
+            # Probability of shock in this time step
+            if np.random.random() < cpp_result.arrival_rate * dt:
+                # A shock occurs - sample jump size
+                jump = _sample_from_distribution(
+                    cpp_result.jump_distribution,
+                    cpp_result.jump_params,
+                    1
+                )[0]
+                cumulative += jump
+            paths[i, t] = cumulative
+    
+    return paths
+
+
+def compute_cpp_percentiles(
+    paths: np.ndarray,
+    percentiles: List[float] = None,
+) -> pd.DataFrame:
+    """Compute percentile bands from simulated CPP paths.
+    
+    Parameters
+    ----------
+    paths : np.ndarray
+        Simulated paths of shape (n_paths, n_steps)
+    percentiles : List[float]
+        Percentiles to compute (default: 5, 25, 50, 75, 95)
+        
+    Returns
+    -------
+    DataFrame with percentile values at each time step
+    """
+    if percentiles is None:
+        percentiles = [5, 25, 50, 75, 95]
+    
+    n_steps = paths.shape[1]
+    result = {"time": np.arange(n_steps)}
+    
+    for p in percentiles:
+        result[f"p{p}"] = np.percentile(paths, p, axis=0)
+    
+    return pd.DataFrame(result)

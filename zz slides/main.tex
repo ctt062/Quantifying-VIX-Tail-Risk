@@ -338,6 +338,139 @@ Half-life & 3.8 days & Excitation halving time \\
 \end{itemize}
 \end{frame}
 
+% ============================================================
+% COMPOUND POISSON PROCESS
+% ============================================================
+
+\begin{frame}{Compound Poisson Process: Motivation}
+\textbf{Problem:} HPP/NHPP/Hawkes model \emph{when} shocks occur, but not \emph{how big}.
+
+\vspace{0.5em}
+\textbf{Compound Poisson Process (CPP):}
+\[
+S(T) = \sum_{i=1}^{N(T)} J_i
+\]
+where:
+\begin{itemize}
+    \item $N(T) \sim \mathrm{Poisson}(\lambda T)$: number of shocks by time $T$
+    \item $J_i \sim F$: random jump sizes (iid)
+    \item $S(T)$: cumulative shock impact over horizon $T$
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Key Insight:} Models \emph{both} timing and magnitude $\Rightarrow$ risk quantification.
+\end{frame}
+
+\begin{frame}{CPP: Jump Size Distribution Selection}
+\textbf{Candidates for jump size distribution $F$:}
+\begin{itemize}
+    \item Exponential: $f(x) = \lambda e^{-\lambda x}$ (memoryless)
+    \item Gamma: $f(x) \propto x^{k-1} e^{-x/\theta}$ (flexible shape)
+    \item Lognormal: $\ln(J) \sim N(\mu, \sigma^2)$ (multiplicative)
+    \item \textbf{Pareto}: $f(x) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}$ (heavy tails)
+    \item Weibull: $f(x) \propto x^{k-1} e^{-(x/\lambda)^k}$ (hazard rate)
+\end{itemize}
+
+\vspace{0.5em}
+\textbf{Selection via AIC + KS test:}
+\begin{itemize}
+    \item Best fit: \textbf{Pareto} ($\alpha = 2.50$, $x_{\min} = 0.127$)
+    \item KS p-value $= 0.42$ $\Rightarrow$ cannot reject fit
+\end{itemize}
+\end{frame}
+
+\begin{frame}{CPP: Fitted Parameters}
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Parameter & Value & Interpretation \\
+\midrule
+$\lambda$ & 12.64/year & Shock arrival rate \\
+$\mathbb{E}[J]$ & 0.211 & Mean jump size (21\% log-move) \\
+$\mathrm{Std}[J]$ & 0.189 & Jump size volatility \\
+$\mathbb{E}[S]$ & 2.67/year & Expected annual impact \\
+\midrule
+VaR (95\%) & 4.24 & 95th percentile annual impact \\
+CVaR (95\%) & 5.01 & Expected Shortfall (tail avg) \\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{itemize}
+    \item $\mathbb{E}[S] = \lambda \cdot \mathbb{E}[J] = 12.64 \times 0.211 = 2.67$
+    \item VaR/CVaR computed via 10,000 Monte Carlo simulations.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{CPP: Jump Size Distribution}
+\begin{center}
+    \includegraphics[width=0.75\textwidth]{jump_distribution.png}
+\end{center}
+\begin{itemize}
+    \item Pareto distribution captures heavy right tail of shock magnitudes.
+    \item Most shocks are moderate; a few are extreme.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{CPP: Simulated Paths}
+\begin{center}
+    \includegraphics[width=0.85\textwidth]{cpp_paths.png}
+\end{center}
+\begin{itemize}
+    \item Gray: 50 sample paths of cumulative annual shock impact.
+    \item Shaded: 5--95\% and 25--75\% confidence bands.
+    \item Red: Median trajectory.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{CPP: VaR and CVaR Distribution}
+\begin{center}
+    \includegraphics[width=0.75\textwidth]{cpp_var.png}
+\end{center}
+\begin{itemize}
+    \item Distribution of annual cumulative shock impact.
+    \item VaR (95\%) $= 4.24$: ``In 95\% of years, total impact $\le$ 4.24.''
+    \item CVaR (95\%) $= 5.01$: ``Average impact in worst 5\% of years.''
+\end{itemize}
+\end{frame}
+
+\begin{frame}{CPP: Regime Comparison}
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lcccccc}
+\toprule
+Regime & $\lambda$/Year & $\mathbb{E}[J]$ & $\mathbb{E}[S]$/Year & VaR 95\% & CVaR 95\% \\
+\midrule
+Pre-Crisis & 12.3 & 0.209 & 2.57 & 4.15 & 4.92 \\
+\textbf{COVID} & \textbf{17.3} & \textbf{0.262} & \textbf{4.53} & \textbf{7.44} & \textbf{9.65} \\
+Post-COVID & 11.6 & 0.188 & 2.19 & 3.44 & 3.85 \\
+Recent & 13.6 & 0.216 & 2.95 & 4.70 & 5.63 \\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{itemize}
+    \item COVID: Both higher arrival rate AND larger jumps $\Rightarrow$ 76\% higher $\mathbb{E}[S]$.
+    \item VaR nearly doubles during crisis periods.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{CPP: Regime Risk Comparison}
+\begin{center}
+    \includegraphics[width=0.9\textwidth]{cpp_regime.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{Shock Magnitudes Over Time}
+\begin{center}
+    \includegraphics[width=0.9\textwidth]{shock_magnitudes.png}
+\end{center}
+\begin{itemize}
+    \item Top: Individual shock magnitudes with 20-shock rolling mean.
+    \item Bottom: Cumulative shock count shows acceleration during crises.
+\end{itemize}
+\end{frame}
+
 \begin{frame}{Regime Analysis: Shock Rates Across Periods}
 \begin{table}[ht]
 \centering
@@ -438,7 +571,8 @@ HAR-RV & 1.271 \\
     \item \textbf{Persistence:} VIX volatility shocks have a half-life of 4--10 days; EGARCH captures longer memory.
     \item \textbf{Leverage Effect:} GJR-GARCH $\gamma = -0.27$ confirms asymmetric response.
     \item \textbf{Self-Excitation:} Hawkes branching ratio $= 0.23$ $\Rightarrow$ shocks trigger more shocks.
-    \item \textbf{Regime Dependence:} COVID showed 41\% higher shock rate than baseline.
+    \item \textbf{Compound Poisson:} Pareto-distributed jumps; VaR 95\% $= 4.24$/year.
+    \item \textbf{Regime Dependence:} COVID showed 76\% higher expected annual impact.
     \item \textbf{Forecasting:} EWMA beats GARCH on log-score; both well-calibrated.
 \end{enumerate}
 \end{frame}
@@ -448,17 +582,18 @@ HAR-RV & 1.271 \\
     \item \textbf{Risk Management:}
     \begin{itemize}
         \item Use EGARCH/GJR-GARCH for asymmetric VaR calculations.
-        \item Hawkes intensity can provide real-time ``shock alert'' signals.
+        \item Hawkes intensity provides real-time ``shock alert'' signals.
+        \item CPP gives VaR/CVaR for aggregate annual shock impact.
     \end{itemize}
     \item \textbf{Option Pricing:}
     \begin{itemize}
         \item Leverage effect matters: adjust for skewed vol-of-vol.
-        \item Shock clustering affects term structure of implied volatility.
+        \item Pareto jumps justify heavy-tail adjustments in pricing.
     \end{itemize}
     \item \textbf{Portfolio Allocation:}
     \begin{itemize}
         \item Regime detection enables adaptive hedging strategies.
-        \item 4-day Hawkes half-life suggests momentum in shock risk.
+        \item CPP regime analysis shows crisis periods need 2$\times$ risk budget.
     \end{itemize}
 \end{itemize}
 \end{frame}
@@ -490,10 +625,11 @@ HAR-RV & 1.271 \\
 \begin{frame}{Conclusion}
 \begin{itemize}
     \item VIX exhibits \textbf{persistent, asymmetric volatility clustering} well captured by EGARCH.
-    \item Large spikes arrive at $\sim$9/year and exhibit \textbf{self-excitation} (Hawkes branching ratio 0.23).
-    \item \textbf{COVID regime} showed significantly elevated shock rates (+41\%).
+    \item Large spikes arrive at $\sim$13/year and exhibit \textbf{self-excitation} (Hawkes branching ratio 0.23).
+    \item \textbf{Compound Poisson} quantifies aggregate shock risk: VaR 95\% $= 4.24$/year.
+    \item \textbf{COVID regime} showed 76\% higher expected annual impact than baseline.
     \item Out-of-sample, \textbf{EWMA remains a tough benchmark} to beat for density forecasting.
-    \item The reproducible pipeline (\texttt{runall.py}) with \textbf{23 unit tests} enables transparent research.
+    \item The reproducible pipeline (\texttt{runall.py}) with \textbf{28 unit tests} enables transparent research.
 \end{itemize}
 
 \vspace{1em}
@@ -515,11 +651,11 @@ Shock-Persistence-and-Shock-Frequency-in-VIX/
 |   +-- config.py              # Parameters
 |   +-- data_pipeline.py       # Data loading
 |   +-- volatility_models.py   # GARCH/EGARCH/GJR/HAR-RV
-|   +-- shock_modeling.py      # HPP/NHPP/Hawkes
+|   +-- shock_modeling.py      # HPP/NHPP/Hawkes/CPP
 |   +-- forecast_evaluation.py # OOS evaluation
 |   +-- visualization.py       # Plotting
 +-- tests/
-|   +-- test_models.py         # 23 unit tests
+|   +-- test_models.py         # 28 unit tests
 +-- figures/                   # Generated plots
 \end{verbatim}
 \end{frame}
@@ -530,19 +666,19 @@ Shock-Persistence-and-Shock-Frequency-in-VIX/
 S_t = \log f(r_t \mid \mu_t, \sigma_t^2)
 \]
 
-\textbf{PIT:}
-\[
-u_t = F(r_t \mid \mu_t, \sigma_t^2) \quad \text{should be } \mathrm{Uniform}(0,1)
-\]
-
 \textbf{Hawkes Intensity:}
 \[
 \lambda(t) = \mu + \sum_{t_i < t} \alpha \cdot e^{-\beta(t - t_i)}
 \]
 
-\textbf{Diebold--Mariano Statistic:}
+\textbf{Compound Poisson Process:}
 \[
-\text{DM} = \frac{\bar{d}}{\sqrt{\widehat{\mathrm{Var}}(\bar{d})}} \xrightarrow{d} N(0,1)
+S(T) = \sum_{i=1}^{N(T)} J_i, \quad N(T) \sim \mathrm{Poisson}(\lambda T), \quad J_i \sim F
+\]
+
+\textbf{Expected Annual Impact:}
+\[
+\mathbb{E}[S] = \lambda \cdot \mathbb{E}[J] \cdot T
 \]
 \end{frame}
 

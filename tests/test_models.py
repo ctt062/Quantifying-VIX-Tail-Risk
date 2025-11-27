@@ -185,6 +185,71 @@ class TestHawkesProcess:
         assert np.isclose(hawkes.branching_ratio, expected_ratio, rtol=1e-6)
 
 
+class TestCompoundPoisson:
+    """Tests for Compound Poisson Process."""
+
+    def test_fit_compound_poisson_returns_result(self, sample_returns_with_shocks):
+        """fit_compound_poisson should return CompoundPoissonResult."""
+        shock_def = shock_modeling.define_shocks(sample_returns_with_shocks, quantile=0.90)
+        cpp = shock_modeling.fit_compound_poisson(
+            sample_returns_with_shocks, shock_def.indicator
+        )
+        assert isinstance(cpp, shock_modeling.CompoundPoissonResult)
+        assert cpp.arrival_rate > 0
+        assert cpp.arrival_rate_annual > 0
+        assert cpp.mean_jump > 0
+
+    def test_compound_poisson_var_cvar(self, sample_returns_with_shocks):
+        """CPP should compute valid VaR and CVaR."""
+        shock_def = shock_modeling.define_shocks(sample_returns_with_shocks, quantile=0.90)
+        cpp = shock_modeling.fit_compound_poisson(
+            sample_returns_with_shocks, shock_def.indicator
+        )
+        # VaR should be less than or equal to CVaR
+        assert cpp.var_95 <= cpp.cvar_95
+        # Both should be positive
+        assert cpp.var_95 >= 0
+        assert cpp.cvar_95 >= 0
+
+    def test_compound_poisson_distribution_selection(self, sample_returns_with_shocks):
+        """CPP should select a valid jump distribution."""
+        shock_def = shock_modeling.define_shocks(sample_returns_with_shocks, quantile=0.90)
+        cpp = shock_modeling.fit_compound_poisson(
+            sample_returns_with_shocks, shock_def.indicator
+        )
+        valid_distributions = ["exponential", "gamma", "lognormal", "pareto", "weibull"]
+        assert cpp.jump_distribution in valid_distributions
+
+    def test_cpp_simulation_paths(self, sample_returns_with_shocks):
+        """simulate_compound_poisson_paths should return valid array."""
+        shock_def = shock_modeling.define_shocks(sample_returns_with_shocks, quantile=0.90)
+        cpp = shock_modeling.fit_compound_poisson(
+            sample_returns_with_shocks, shock_def.indicator
+        )
+        paths = shock_modeling.simulate_compound_poisson_paths(
+            cpp, n_paths=100, horizon_days=252
+        )
+        assert paths.shape == (100, 252)
+        # Cumulative paths should be non-decreasing
+        assert np.all(np.diff(paths, axis=1) >= 0)
+
+    def test_cpp_percentiles(self, sample_returns_with_shocks):
+        """compute_cpp_percentiles should return valid DataFrame."""
+        shock_def = shock_modeling.define_shocks(sample_returns_with_shocks, quantile=0.90)
+        cpp = shock_modeling.fit_compound_poisson(
+            sample_returns_with_shocks, shock_def.indicator
+        )
+        paths = shock_modeling.simulate_compound_poisson_paths(
+            cpp, n_paths=100, horizon_days=100
+        )
+        percentiles = shock_modeling.compute_cpp_percentiles(paths)
+        assert isinstance(percentiles, pd.DataFrame)
+        assert "p50" in percentiles.columns
+        # Percentiles should be ordered
+        assert (percentiles["p5"] <= percentiles["p50"]).all()
+        assert (percentiles["p50"] <= percentiles["p95"]).all()
+
+
 class TestRegimeAnalysis:
     """Tests for regime analysis functions."""
 

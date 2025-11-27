@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import numpy as np
 import pandas as pd
 
 from src import (
@@ -427,7 +428,7 @@ def main(
     # =========================================================================
     # HAWKES SELF-EXCITING PROCESS
     # =========================================================================
-    print(f"\n[4/8] Fitting Hawkes self-exciting process...")
+    print(f"\n[4/9] Fitting Hawkes self-exciting process...")
     print("-" * 50)
 
     try:
@@ -449,9 +450,76 @@ def main(
         print(f"  Could not fit Hawkes process: {e}")
 
     # =========================================================================
+    # COMPOUND POISSON PROCESS
+    # =========================================================================
+    print(f"\n[5/9] Fitting Compound Poisson Process...")
+    print("-" * 50)
+
+    try:
+        cpp = shock_modeling.fit_compound_poisson(returns, shock_def.indicator)
+        print(f"  Best jump distribution: {cpp.jump_distribution}")
+        print(f"  Jump distribution parameters: {cpp.jump_params}")
+        print(f"  KS test: statistic={cpp.ks_statistic:.4f}, p-value={cpp.ks_pvalue:.4f}")
+        print(f"\n  Arrival rate (λ): {cpp.arrival_rate_annual:.2f} shocks/year")
+        print(f"  Mean jump size E[J]: {cpp.mean_jump:.4f} ({cpp.mean_jump*100:.2f}% log-move)")
+        print(f"  Std jump size Std[J]: {cpp.std_jump:.4f}")
+        print(f"  Expected annual impact E[S] = λ × E[J]: {cpp.expected_annual_impact:.3f}")
+        print(f"\n  Risk metrics (10,000 simulations):")
+        print(f"    VaR (95%): {cpp.var_95:.3f}")
+        print(f"    CVaR (95%): {cpp.cvar_95:.3f}")
+
+        # Plot jump distribution
+        shock_dates = shock_def.indicator[shock_def.indicator == 1].index
+        shock_magnitudes = np.abs(returns.loc[shock_dates])
+        visualization.plot_jump_distribution(
+            shock_magnitudes,
+            cpp.jump_distribution,
+            cpp.jump_params,
+            save_as="jump_distribution.png"
+        )
+
+        # Simulate and plot CPP paths
+        cpp_paths = shock_modeling.simulate_compound_poisson_paths(cpp, n_paths=1000, horizon_days=252)
+        percentile_df = shock_modeling.compute_cpp_percentiles(cpp_paths)
+        visualization.plot_cpp_simulation_paths(cpp_paths, percentile_df, save_as="cpp_paths.png")
+
+        # Plot VaR distribution
+        # Run more simulations for VaR plot
+        np.random.seed(42)
+        annual_impacts = []
+        for _ in range(10000):
+            n_shocks = np.random.poisson(cpp.arrival_rate_annual)
+            if n_shocks > 0:
+                jumps = shock_modeling._sample_from_distribution(
+                    cpp.jump_distribution, cpp.jump_params, n_shocks
+                )
+                annual_impacts.append(np.sum(jumps))
+            else:
+                annual_impacts.append(0)
+        annual_impacts = np.array(annual_impacts)
+        visualization.plot_cpp_var_distribution(
+            annual_impacts, cpp.var_95, cpp.cvar_95, save_as="cpp_var.png"
+        )
+
+        # Shock magnitudes over time
+        visualization.plot_shock_magnitude_over_time(
+            returns, shock_def.indicator, save_as="shock_magnitudes.png"
+        )
+
+        # CPP by regime
+        print("\n  Compound Poisson by Market Regime:")
+        cpp_regime_df = shock_modeling.compound_poisson_by_regime(returns, shock_def.indicator)
+        if not cpp_regime_df.empty:
+            print(cpp_regime_df.to_string(index=False))
+            visualization.plot_cpp_regime_comparison(cpp_regime_df, save_as="cpp_regime.png")
+
+    except ValueError as e:
+        print(f"  Could not fit Compound Poisson: {e}")
+
+    # =========================================================================
     # REGIME ANALYSIS
     # =========================================================================
-    print(f"\n[5/8] Regime analysis...")
+    print(f"\n[6/9] Regime analysis...")
     print("-" * 50)
 
     regime_df = shock_modeling.run_regime_analysis(returns, shock_def.indicator)
@@ -463,7 +531,7 @@ def main(
     # =========================================================================
     # OUT-OF-SAMPLE FORECAST EVALUATION
     # =========================================================================
-    print("\n[6/8] Out-of-sample forecast evaluation...")
+    print("\n[7/9] Out-of-sample forecast evaluation...")
     print("-" * 50)
 
     ewma_full = forecast_evaluation.ewma_variance(returns)
@@ -516,7 +584,7 @@ def main(
     # =========================================================================
     # STATISTICAL TESTS
     # =========================================================================
-    print(f"\n[7/8] Statistical tests...")
+    print(f"\n[8/9] Statistical tests...")
     print("-" * 50)
 
     loss_garch = forecast_evaluation.pit_log_loss(metrics["pit_garch"])
@@ -531,7 +599,7 @@ def main(
     # =========================================================================
     # SENSITIVITY ANALYSIS
     # =========================================================================
-    print(f"\n[8/8] Sensitivity analysis...")
+    print(f"\n[9/9] Sensitivity analysis...")
     print("-" * 50)
 
     if shock_quantile_grid:
@@ -569,13 +637,20 @@ Key Findings:
    - High alpha: strong initial excitation after each shock
    - Low beta: slow decay of excitation (prolonged clustering)
 
-4. REGIME DEPENDENCE:
+4. COMPOUND POISSON PROCESS:
+   - Models BOTH shock timing (Poisson arrivals) AND magnitude (jump sizes)
+   - E[S] = λ × E[J]: expected cumulative annual impact
+   - VaR/CVaR quantify tail risk from shock accumulation
+   - Jump distribution choice (gamma, lognormal, etc.) captures fat tails
+
+5. REGIME DEPENDENCE:
    - Crisis periods show elevated shock rates and volatility
    - Risk models should account for regime-switching behavior
 
-5. PRACTICAL IMPLICATIONS:
+6. PRACTICAL IMPLICATIONS:
    - Use EGARCH/GJR-GARCH for asymmetric volatility modeling
    - Hawkes process captures self-excitation in shock arrivals
+   - Compound Poisson provides VaR/CVaR for aggregate shock risk
    - Volatility-relative shocks provide cleaner 'surprise' identification
 """)
 

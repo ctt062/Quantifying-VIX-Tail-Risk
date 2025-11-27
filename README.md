@@ -6,10 +6,11 @@ This repository provides a comprehensive, reproducible research pipeline for ana
 
 - **Multiple Volatility Models**: GARCH(1,1), EGARCH(1,1), GJR-GARCH(1,1), and HAR-RV
 - **Self-Exciting Shock Modeling**: Hawkes process for capturing shock clustering
+- **Compound Poisson Process**: Models shock timing AND magnitude for VaR/CVaR
 - **Two Shock Definitions**: Fixed quantile and volatility-relative (surprise-based)
 - **Regime Analysis**: Pre-crisis, COVID, post-COVID comparison
 - **Rigorous Evaluation**: Rolling OOS forecasts, PIT diagnostics, Diebold–Mariano tests
-- **Comprehensive Test Suite**: 23 unit tests covering all modules
+- **Comprehensive Test Suite**: 28 unit tests covering all modules
 
 ## Project Structure
 
@@ -87,8 +88,11 @@ Distribution selection (Normal, Student-t, GED) is automatic via PIT uniformity 
 | **HPP** | λ = constant | Baseline arrival rate |
 | **NHPP** | λₜ = f(covariates) via Poisson GLM | Time-varying intensity |
 | **Hawkes** | λₜ = μ + Σ α·exp(-β(t-tᵢ)) | Self-exciting clustering |
+| **Compound Poisson** | S(T) = Σᵢ Jᵢ, N(T)~Poisson(λT) | Timing + magnitude for VaR |
 
 The **Hawkes process** captures shock clustering: each shock temporarily increases the probability of subsequent shocks, with intensity decaying exponentially.
+
+The **Compound Poisson Process** extends this by modeling jump sizes (Jᵢ), enabling computation of VaR and CVaR for aggregate annual shock impact.
 
 ### Forecast Evaluation
 
@@ -120,14 +124,20 @@ Compares shock characteristics across market regimes:
 | `hawkes_intensity.png` | Hawkes intensity over time |
 | `regime_comparison.png` | Shock rates by regime |
 | `model_comparison.png` | AIC/BIC across models |
+| `jump_distribution.png` | CPP jump size distribution |
+| `cpp_paths.png` | Simulated CPP cumulative paths |
+| `cpp_var.png` | VaR/CVaR distribution |
+| `cpp_regime.png` | CPP parameters by regime |
+| `shock_magnitudes.png` | Shock magnitudes over time |
 
 ## Key Findings
 
 1. **Volatility Persistence**: EGARCH captures longer memory (half-life ~10 days vs ~4 days for GARCH)
 2. **Leverage Effect**: GJR-GARCH γ coefficient confirms asymmetric volatility response
 3. **Shock Clustering**: Hawkes branching ratio ~0.23 indicates moderate self-excitation
-4. **Regime Dependence**: COVID period shows elevated shock rates (17/year vs 12/year baseline)
-5. **Forecast Performance**: EWMA remains a tough benchmark; GARCH provides better calibration
+4. **Compound Poisson**: Pareto-distributed jumps; VaR 95% = 4.24/year cumulative impact
+5. **Regime Dependence**: COVID period shows 76% higher expected annual shock impact
+6. **Forecast Performance**: EWMA remains a tough benchmark; GARCH provides better calibration
 
 ## Reproducibility
 
@@ -144,3 +154,4 @@ Compares shock characteristics across market regimes:
 - Corsi, F. (2009). A Simple Approximate Long-Memory Model of Realized Volatility. *J. Financial Econometrics*.
 - Hawkes, A. G. (1971). Spectra of Some Self-Exciting and Mutually Exciting Point Processes. *Biometrika*.
 - Diebold, F. X., & Mariano, R. S. (1995). Comparing Predictive Accuracy. *JBES*.
+- Cont, R., & Tankov, P. (2004). Financial Modelling with Jump Processes. *Chapman & Hall/CRC*.

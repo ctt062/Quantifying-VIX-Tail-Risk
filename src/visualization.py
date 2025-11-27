@@ -287,3 +287,202 @@ def plot_model_comparison(
     fig.tight_layout()
     _save(fig, save_as)
     return fig
+
+
+def plot_jump_distribution(
+    shock_magnitudes: pd.Series | np.ndarray,
+    fitted_dist: str,
+    fitted_params: dict,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Plot histogram of shock magnitudes with fitted distribution overlay."""
+    
+    magnitudes = np.array(shock_magnitudes)
+    magnitudes = magnitudes[magnitudes > 0]
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Histogram
+    sns.histplot(magnitudes, bins=30, stat="density", ax=ax, color="#9edae5", 
+                 edgecolor="black", alpha=0.7, label="Observed")
+    
+    # Fitted distribution
+    x = np.linspace(0, np.percentile(magnitudes, 99), 200)
+    
+    if fitted_dist == "exponential":
+        y = stats.expon.pdf(x, scale=fitted_params["scale"])
+    elif fitted_dist == "gamma":
+        y = stats.gamma.pdf(x, fitted_params["shape"], scale=fitted_params["scale"])
+    elif fitted_dist == "lognormal":
+        y = stats.lognorm.pdf(x, s=fitted_params["sigma"], scale=np.exp(fitted_params["mu"]))
+    elif fitted_dist == "pareto":
+        y = stats.pareto.pdf(x, fitted_params["alpha"], scale=fitted_params["xmin"])
+    elif fitted_dist == "weibull":
+        y = stats.weibull_min.pdf(x, fitted_params["shape"], scale=fitted_params["scale"])
+    else:
+        y = np.zeros_like(x)
+    
+    ax.plot(x, y, color="#d62728", linewidth=2.5, label=f"Fitted {fitted_dist.title()}")
+    
+    ax.set_xlabel("Shock Magnitude (|Δlog VIX|)")
+    ax.set_ylabel("Density")
+    ax.set_title("Jump Size Distribution (Compound Poisson)")
+    ax.legend()
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
+
+
+def plot_cpp_simulation_paths(
+    paths: np.ndarray,
+    percentile_df: pd.DataFrame = None,
+    n_sample_paths: int = 50,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Plot simulated Compound Poisson Process paths with confidence bands."""
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    n_paths, n_steps = paths.shape
+    time = np.arange(n_steps)
+    
+    # Plot sample paths (light gray)
+    sample_idx = np.random.choice(n_paths, min(n_sample_paths, n_paths), replace=False)
+    for idx in sample_idx:
+        ax.plot(time, paths[idx], color="gray", alpha=0.2, linewidth=0.5)
+    
+    # Plot percentile bands
+    if percentile_df is not None:
+        ax.fill_between(time, percentile_df["p5"], percentile_df["p95"], 
+                       alpha=0.3, color="#1f77b4", label="5-95% CI")
+        ax.fill_between(time, percentile_df["p25"], percentile_df["p75"], 
+                       alpha=0.4, color="#1f77b4", label="25-75% CI")
+        ax.plot(time, percentile_df["p50"], color="#d62728", linewidth=2, label="Median")
+    
+    ax.set_xlabel("Days")
+    ax.set_ylabel("Cumulative Shock Impact")
+    ax.set_title("Compound Poisson Process: Simulated Paths (1 Year)")
+    ax.legend(loc="upper left")
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
+
+
+def plot_cpp_var_distribution(
+    annual_impacts: np.ndarray,
+    var_95: float,
+    cvar_95: float,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Plot distribution of annual impacts with VaR/CVaR markers."""
+    
+    fig, ax = plt.subplots(figsize=(9, 5))
+    
+    # Histogram
+    sns.histplot(annual_impacts, bins=50, stat="density", ax=ax, 
+                 color="#2ca02c", alpha=0.6, edgecolor="black")
+    
+    # VaR line
+    ax.axvline(var_95, color="#d62728", linewidth=2, linestyle="--", 
+               label=f"VaR 95% = {var_95:.3f}")
+    
+    # CVaR line
+    ax.axvline(cvar_95, color="#9467bd", linewidth=2, linestyle="-.", 
+               label=f"CVaR 95% = {cvar_95:.3f}")
+    
+    # Shade the tail
+    x_tail = annual_impacts[annual_impacts >= var_95]
+    if len(x_tail) > 0:
+        ax.axvspan(var_95, annual_impacts.max(), alpha=0.2, color="#d62728", 
+                   label="95% Tail")
+    
+    ax.set_xlabel("Annual Cumulative Shock Impact")
+    ax.set_ylabel("Density")
+    ax.set_title("Annual Impact Distribution (Compound Poisson)")
+    ax.legend()
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
+
+
+def plot_cpp_regime_comparison(
+    regime_df: pd.DataFrame,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Compare Compound Poisson parameters across regimes."""
+    
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    
+    regimes = regime_df["Regime"].tolist()
+    x = np.arange(len(regimes))
+    
+    # Arrival rate
+    axes[0, 0].bar(x, regime_df["λ/Year"], color="#1f77b4", alpha=0.8)
+    axes[0, 0].set_xticks(x)
+    axes[0, 0].set_xticklabels(regimes, rotation=20, ha="right")
+    axes[0, 0].set_ylabel("Shocks per Year")
+    axes[0, 0].set_title("Arrival Rate (λ)")
+    
+    # Mean jump
+    axes[0, 1].bar(x, regime_df["E[J]"], color="#ff7f0e", alpha=0.8)
+    axes[0, 1].set_xticks(x)
+    axes[0, 1].set_xticklabels(regimes, rotation=20, ha="right")
+    axes[0, 1].set_ylabel("Mean Jump Size")
+    axes[0, 1].set_title("Expected Jump E[J]")
+    
+    # Expected annual impact
+    axes[1, 0].bar(x, regime_df["E[S]/Year"], color="#2ca02c", alpha=0.8)
+    axes[1, 0].set_xticks(x)
+    axes[1, 0].set_xticklabels(regimes, rotation=20, ha="right")
+    axes[1, 0].set_ylabel("Expected Annual Impact")
+    axes[1, 0].set_title("E[S] = λ × E[J] × 252")
+    
+    # VaR comparison
+    axes[1, 1].bar(x, regime_df["VaR 95%"], color="#d62728", alpha=0.7, label="VaR 95%")
+    axes[1, 1].bar(x, regime_df["CVaR 95%"], color="#9467bd", alpha=0.4, label="CVaR 95%")
+    axes[1, 1].set_xticks(x)
+    axes[1, 1].set_xticklabels(regimes, rotation=20, ha="right")
+    axes[1, 1].set_ylabel("Risk Measure")
+    axes[1, 1].set_title("VaR & CVaR (95%)")
+    axes[1, 1].legend()
+    
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
+
+
+def plot_shock_magnitude_over_time(
+    returns: pd.Series,
+    shock_indicator: pd.Series,
+    save_as: str | None = None,
+) -> plt.Figure:
+    """Plot shock magnitudes over time with rolling statistics."""
+    
+    shock_dates = shock_indicator[shock_indicator == 1].index
+    shock_magnitudes = np.abs(returns.loc[shock_dates])
+    
+    fig, axes = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
+    
+    # Top: Shock magnitudes scatter
+    axes[0].scatter(shock_dates, shock_magnitudes, s=30, alpha=0.7, 
+                    c=shock_magnitudes, cmap="Reds", edgecolor="black", linewidth=0.5)
+    axes[0].set_ylabel("Shock Magnitude")
+    axes[0].set_title("Shock Magnitudes Over Time")
+    
+    # Add rolling mean of shock magnitudes
+    shock_series = pd.Series(shock_magnitudes.values, index=shock_dates)
+    rolling_mean = shock_series.rolling(window=20, min_periods=5).mean()
+    axes[0].plot(rolling_mean.index, rolling_mean.values, color="#1f77b4", 
+                 linewidth=2, label="20-shock rolling mean")
+    axes[0].legend()
+    
+    # Bottom: Cumulative shock count
+    cumulative = shock_indicator.cumsum()
+    axes[1].plot(cumulative.index, cumulative.values, color="#2ca02c", linewidth=1.5)
+    axes[1].set_ylabel("Cumulative Shocks")
+    axes[1].set_xlabel("Date")
+    axes[1].set_title("Cumulative Shock Count")
+    
+    fig.tight_layout()
+    _save(fig, save_as)
+    return fig
