@@ -1,4 +1,4 @@
-# Modelling VIX Dynamics: GARCH vs Compound Poisson
+# Quantifying VIX Tail Risk: Volatility Clustering and Jump Processes
 
 **HKUST IEDA4000E — Statistical Modelling for Financial Engineering**
 
