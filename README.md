@@ -1,6 +1,17 @@
-# The Dynamics of Market Fear: Shock Persistence and Shock Frequency in VIX
+# Modelling VIX Dynamics: GARCH vs Compound Poisson
 
-This repository provides a comprehensive, reproducible research pipeline for analyzing VIX volatility dynamics, shock arrivals, and forecast evaluation. It implements state-of-the-art volatility models, self-exciting point processes, and rigorous out-of-sample evaluation.
+**HKUST IEDA4000E — Statistical Modelling for Financial Engineering**
+
+*Course Project by: Vittorio Prana CHANDREAN, CHONG Tin Tak, CHOI Man Hou*
+
+---
+
+This repository provides a comprehensive, reproducible research pipeline for analyzing VIX volatility dynamics. We compare two modeling frameworks:
+
+1. **GARCH-family models** (GARCH, EGARCH) for capturing volatility clustering
+2. **Compound Poisson Process (CPP)** for modeling shock timing and magnitude
+
+The project demonstrates how these complementary approaches can be used for risk quantification (VaR/CVaR) across different market regimes.
 
 ## Key Features
 
