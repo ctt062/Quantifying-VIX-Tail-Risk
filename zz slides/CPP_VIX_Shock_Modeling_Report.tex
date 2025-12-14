@@ -59,7 +59,7 @@ This report provides a comprehensive mathematical treatment of the Compound Pois
 \section{Introduction}
 % ============================================================
 
-Traditional point process models for financial shocks---such as the Homogeneous Poisson Process (HPP), Non-Homogeneous Poisson Process (NHPP), and Hawkes process---focus on modeling \emph{when} shocks occur. However, for risk management purposes, we also need to understand \emph{how large} these shocks are. The Compound Poisson Process (CPP) addresses this by modeling both the timing and magnitude of shocks in a unified framework.
+Traditional point process models for financial shocks---such as the Homogeneous Poisson Process (HPP), Non-Homogeneous Poisson Process (NHPP), and Hawkes process \citep{hawkes1971spectra}---focus on modeling \emph{when} shocks occur. However, for risk management purposes, we also need to understand \emph{how large} these shocks are. The Compound Poisson Process (CPP) \citep{cont2004financial,ross2014introduction} addresses this by modeling both the timing and magnitude of shocks in a unified framework.
 
 \subsection{Motivation}
 
@@ -70,7 +70,7 @@ In our VIX analysis, we identified approximately 208 shock events over 15 years 
     \item How does shock risk differ across market regimes?
 \end{itemize}
 
-The CPP provides a principled framework for answering these questions. In addition, we model the \emph{continuous} component of volatility dynamics using a mean--variance decomposition on $d_t=\Delta\log(\mathrm{VIX})_t$: an ARIMA model for the conditional mean and GARCH-family models (GARCH/EGARCH) for the conditional variance. This volatility modeling complements the CPP shock framework by capturing volatility clustering and asymmetry, and it enables a concise persistence metric via the \textbf{volatility half-life} (how quickly volatility shocks decay back toward baseline).
+The CPP provides a principled framework for answering these questions \citep{cont2004financial}. In addition, we model the \emph{continuous} component of volatility dynamics using a mean--variance decomposition on $d_t=\Delta\log(\mathrm{VIX})_t$: an ARIMA model \citep{box2015time} for the conditional mean and GARCH-family models \citep{bollerslev1986generalized,nelson1991conditional} (GARCH/EGARCH) for the conditional variance. This volatility modeling complements the CPP shock framework by capturing volatility clustering and asymmetry, and it enables a concise persistence metric via the \textbf{volatility half-life} (how quickly volatility shocks decay back toward baseline).
 
 % ============================================================
 \section{Foundations}
@@ -109,7 +109,7 @@ The VIX level exhibits strong persistence (slowly decaying ACF), while $\Delta \
 \end{figure}
 
 \subsubsection{Stationarity tests}
-We apply both ADF (unit-root null) and KPSS (stationarity null) tests. The results show mixed evidence for the VIX \emph{level}, but consistent evidence that $\Delta \log(\mathrm{VIX})$ is stationary.
+We apply both ADF (unit-root null) \citep{dickey1979distribution} and KPSS (stationarity null) \citep{kwiatkowski1992testing} tests. The results show mixed evidence for the VIX \emph{level}, but consistent evidence that $\Delta \log(\mathrm{VIX})$ is stationary.
 
 \begin{table}[H]
 \centering
@@ -139,13 +139,13 @@ The VIX \textbf{level} is highly persistent and yields mixed stationarity eviden
 We decompose dynamics into a conditional mean model for $d_t=\Delta\log(\mathrm{VIX})_t$ and a conditional variance model for its innovations.
 
 \subsubsection{ARIMA mean model}
-Let $\varepsilon_t$ denote innovations. An ARIMA$(p,0,q)$ (ARMA$(p,q)$) model takes the form
+Let $\varepsilon_t$ denote innovations. An ARIMA$(p,0,q)$ (ARMA$(p,q)$) model \citep{box2015time} takes the form
 \[
 d_t = c + \sum_{i=1}^{p}\phi_i d_{t-i} + \varepsilon_t + \sum_{j=1}^{q}\theta_j \varepsilon_{t-j}.
 \]
 
 \subsubsection{GARCH$(p,q)$ conditional variance}
-A GARCH$(p,q)$ model specifies time-varying conditional variance via
+A GARCH$(p,q)$ model \citep{bollerslev1986generalized} specifies time-varying conditional variance via
 \[
 \sigma_t^2 = \omega + \sum_{i=1}^{p}\alpha_i \varepsilon_{t-i}^2 + \sum_{j=1}^{q}\beta_j \sigma_{t-j}^2.
 \]
@@ -155,7 +155,7 @@ h_{1/2} \approx \frac{\log(0.5)}{\log(\alpha+\beta)}.
 \]
 
 \subsubsection{EGARCH$(p,q)$ conditional variance}
-EGARCH models log-variance and allow asymmetric responses. For EGARCH$(1,1)$, letting $z_{t-1}=\varepsilon_{t-1}/\sigma_{t-1}$,
+EGARCH models \citep{nelson1991conditional} log-variance and allow asymmetric responses. For EGARCH$(1,1)$, letting $z_{t-1}=\varepsilon_{t-1}/\sigma_{t-1}$,
 \[
 \log(\sigma_t^2)
 =
@@ -173,137 +173,8 @@ h_{1/2} \approx \frac{\log(0.5)}{\log(\beta)}.
 \]
 
 % ------------------------------------------------------------
-\subsection{Mathematical foundations of the Compound Poisson Process}
+% Section 2.3 moved to Appendix
 % ------------------------------------------------------------
-
-\subsubsection{Definition of the Compound Poisson Process}
-
-\begin{definition}[Compound Poisson Process]
-A \textbf{Compound Poisson Process} $\{S(t) : t \geq 0\}$ is defined as:
-\begin{equation}
-\boxed{S(t) = \sum_{i=1}^{N(t)} J_i}
-\end{equation}
-where:
-\begin{itemize}
-    \item $N(t) \sim \text{Poisson}(\lambda t)$ is a counting process representing the number of shocks by time $t$
-    \item $\{J_i\}_{i=1}^{\infty}$ is a sequence of i.i.d.\ random variables representing jump sizes
-    \item $J_i \sim F$ for some distribution $F$ with $\mathbb{E}[J] = \mu_J$ and $\text{Var}(J) = \sigma_J^2$
-    \item $N(t)$ and $\{J_i\}$ are independent
-\end{itemize}
-\end{definition}
-
-\begin{remark}
-The convention is $S(t) = 0$ when $N(t) = 0$ (i.e., an empty sum equals zero).
-\end{remark}
-
-\subsubsection{Interpretation for VIX Shocks}
-
-In our application:
-\begin{itemize}
-    \item $S(t)$ = Cumulative shock impact (sum of absolute log-changes) by time $t$
-    \item $N(t)$ = Number of VIX shocks by time $t$
-    \item $J_i$ = Magnitude of the $i$-th shock: $J_i = |\Delta \log(\text{VIX})_{t_i}|$
-    \item $\lambda$ = Shock arrival rate (shocks per unit time)
-\end{itemize}
-
-\subsubsection{Distributional Properties}
-
-\paragraph{Mean of the Compound Poisson Process}
-
-\begin{theorem}[Expected Value]
-The expected value of $S(t)$ is:
-\begin{equation}
-\boxed{\mathbb{E}[S(t)] = \lambda t \cdot \mathbb{E}[J]}
-\end{equation}
-\end{theorem}
-
-\begin{proof}
-Using the law of total expectation, conditioning on $N(t)$:
-\begin{align}
-\mathbb{E}[S(t)] &= \mathbb{E}\left[\mathbb{E}\left[\sum_{i=1}^{N(t)} J_i \,\Big|\, N(t)\right]\right] \\
-&= \mathbb{E}\left[N(t) \cdot \mathbb{E}[J]\right] \quad \text{(since $J_i$ are i.i.d.\ and independent of $N(t)$)} \\
-&= \mathbb{E}[N(t)] \cdot \mathbb{E}[J] \\
-&= \lambda t \cdot \mathbb{E}[J]
-\end{align}
-\end{proof}
-
-\begin{remark}
-This elegant result shows that the expected cumulative impact grows linearly in time, with rate $\lambda \cdot \mathbb{E}[J]$.
-\end{remark}
-
-\paragraph{Variance of the Compound Poisson Process}
-
-\begin{theorem}[Variance]
-The variance of $S(t)$ is:
-\begin{equation}
-\boxed{\text{Var}(S(t)) = \lambda t \cdot \mathbb{E}[J^2]}
-\end{equation}
-\end{theorem}
-
-\begin{proof}
-Using the law of total variance:
-\begin{equation}
-\text{Var}(S(t)) = \mathbb{E}[\text{Var}(S(t) | N(t))] + \text{Var}(\mathbb{E}[S(t) | N(t)])
-\end{equation}
-
-For the first term, conditional on $N(t) = n$:
-\begin{equation}
-\text{Var}(S(t) | N(t) = n) = n \cdot \text{Var}(J) = n \cdot \sigma_J^2
-\end{equation}
-
-Thus:
-\begin{equation}
-\mathbb{E}[\text{Var}(S(t) | N(t))] = \mathbb{E}[N(t)] \cdot \sigma_J^2 = \lambda t \cdot \sigma_J^2
-\end{equation}
-
-For the second term:
-\begin{equation}
-\mathbb{E}[S(t) | N(t) = n] = n \cdot \mathbb{E}[J] = n \cdot \mu_J
-\end{equation}
-
-So:
-\begin{equation}
-\text{Var}(\mathbb{E}[S(t) | N(t)]) = \mu_J^2 \cdot \text{Var}(N(t)) = \mu_J^2 \cdot \lambda t
-\end{equation}
-
-Combining:
-\begin{align}
-\text{Var}(S(t)) &= \lambda t \cdot \sigma_J^2 + \lambda t \cdot \mu_J^2 \\
-&= \lambda t \cdot (\sigma_J^2 + \mu_J^2) \\
-&= \lambda t \cdot \mathbb{E}[J^2]
-\end{align}
-\end{proof}
-
-\paragraph{Moment Generating Function}
-
-\begin{theorem}[MGF of Compound Poisson]
-The moment generating function of $S(t)$ is:
-\begin{equation}
-\boxed{M_{S(t)}(\theta) = \mathbb{E}[e^{\theta S(t)}] = \exp\left(\lambda t \cdot (M_J(\theta) - 1)\right)}
-\end{equation}
-where $M_J(\theta) = \mathbb{E}[e^{\theta J}]$ is the MGF of the jump size distribution.
-\end{theorem}
-
-\begin{proof}
-Conditioning on $N(t)$:
-\begin{align}
-M_{S(t)}(\theta) &= \mathbb{E}[e^{\theta S(t)}] \\
-&= \sum_{n=0}^{\infty} \mathbb{E}[e^{\theta S(t)} | N(t) = n] \cdot P(N(t) = n) \\
-&= \sum_{n=0}^{\infty} \mathbb{E}\left[e^{\theta \sum_{i=1}^{n} J_i}\right] \cdot \frac{(\lambda t)^n e^{-\lambda t}}{n!} \\
-&= \sum_{n=0}^{\infty} (M_J(\theta))^n \cdot \frac{(\lambda t)^n e^{-\lambda t}}{n!} \\
-&= e^{-\lambda t} \sum_{n=0}^{\infty} \frac{(\lambda t \cdot M_J(\theta))^n}{n!} \\
-&= e^{-\lambda t} \cdot e^{\lambda t \cdot M_J(\theta)} \\
-&= \exp(\lambda t \cdot (M_J(\theta) - 1))
-\end{align}
-\end{proof}
-
-\paragraph{Characteristic Function}
-
-The characteristic function is similarly:
-\begin{equation}
-\phi_{S(t)}(u) = \exp\left(\lambda t \cdot (\phi_J(u) - 1)\right)
-\end{equation}
-where $\phi_J(u) = \mathbb{E}[e^{iuJ}]$ is the characteristic function of $J$.
 
 % ============================================================
 \section{Methodology}
@@ -316,10 +187,10 @@ This section summarizes the overall methodology (aligned with our presentation w
 % ------------------------------------------------------------
 
 \subsubsection{Mean model selection (ARIMA)}
-We model $d_t=\Delta\log(\mathrm{VIX})_t$ and select the ARIMA order by information criteria (BIC). The chosen specification is ARIMA$(1,0,1)$ (ARMA$(1,1)$).
+We model $d_t=\Delta\log(\mathrm{VIX})_t$ and select the ARIMA order by information criteria (BIC) \citep{schwarz1978estimating}. The chosen specification is ARIMA$(1,0,1)$ (ARMA$(1,1)$).
 
 \subsubsection{Volatility model selection (GARCH/EGARCH)}
-We fit GARCH-family models on the ARMA residuals and compare variants by AIC/BIC across (i) volatility specification (GARCH vs.\ EGARCH), (ii) orders $(p,q)\in\{1,2\}\times\{1,2\}$, and (iii) innovation distribution (normal vs.\ Student-\emph{t}). Table~\ref{tab:garch_grid} reports the comparison (sorted by BIC).
+We fit GARCH-family models on the ARMA residuals and compare variants by AIC \citep{akaike1974new} and BIC \citep{schwarz1978estimating} across (i) volatility specification (GARCH vs.\ EGARCH), (ii) orders $(p,q)\in\{1,2\}\times\{1,2\}$, and (iii) innovation distribution (normal vs.\ Student-\emph{t}). Table~\ref{tab:garch_grid} reports the comparison (sorted by BIC).
 
 \begin{table}[H]
 \centering
@@ -353,76 +224,9 @@ GARCH  & 2 & 2 & normal & 27223.425748 & 27254.894746 \\
 \subsection{Shock modeling workflow (CPP)}
 % ------------------------------------------------------------
 
-Traditional point process models for financial shocks focus on modeling \emph{when} shocks occur. However, for risk management purposes, we also need to understand \emph{how large} these shocks are. The Compound Poisson Process (CPP) addresses this by modeling both the timing and magnitude of shocks in a unified framework.
+Traditional point process models for financial shocks focus on modeling \emph{when} shocks occur. However, for risk management purposes, we also need to understand \emph{how large} these shocks are. The Compound Poisson Process (CPP) \citep{cont2004financial,ross2014introduction} addresses this by modeling both the timing and magnitude of shocks in a unified framework.
 
-\subsubsection{Jump size distributions}
-The choice of jump size distribution $F$ is critical. We consider several candidates:
-
-\paragraph{Exponential Distribution}
-\begin{equation}
-f(x; \lambda_J) = \lambda_J e^{-\lambda_J x}, \quad x \geq 0
-\end{equation}
-
-\textbf{Properties:}
-\begin{itemize}
-    \item $\mathbb{E}[J] = 1/\lambda_J$
-    \item $\text{Var}(J) = 1/\lambda_J^2$
-    \item Memoryless property: $P(J > s + t | J > s) = P(J > t)$
-\end{itemize}
-
-\textbf{Limitation:} Light tails; may underestimate extreme shocks.
-
-\paragraph{Gamma Distribution}
-\begin{equation}
-f(x; k, \theta) = \frac{x^{k-1} e^{-x/\theta}}{\theta^k \Gamma(k)}, \quad x \geq 0
-\end{equation}
-
-\textbf{Properties:}
-\begin{itemize}
-    \item $\mathbb{E}[J] = k\theta$
-    \item $\text{Var}(J) = k\theta^2$
-    \item Flexible shape: $k < 1$ (decreasing density), $k > 1$ (mode at $(k-1)\theta$)
-\end{itemize}
-
-\paragraph{Lognormal Distribution}
-\begin{equation}
-f(x; \mu, \sigma) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left(-\frac{(\ln x - \mu)^2}{2\sigma^2}\right), \quad x > 0
-\end{equation}
-
-\textbf{Properties:}
-\begin{itemize}
-    \item $\mathbb{E}[J] = e^{\mu + \sigma^2/2}$
-    \item $\text{Var}(J) = (e^{\sigma^2} - 1) e^{2\mu + \sigma^2}$
-    \item Natural for multiplicative processes
-\end{itemize}
-
-\paragraph{Pareto Distribution}
-\begin{equation}
-\boxed{f(x; \alpha, x_m) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m}
-\end{equation}
-
-\textbf{Properties:}
-\begin{itemize}
-    \item $\mathbb{E}[J] = \frac{\alpha x_m}{\alpha - 1}$ for $\alpha > 1$
-    \item $\text{Var}(J) = \frac{x_m^2 \alpha}{(\alpha-1)^2(\alpha-2)}$ for $\alpha > 2$
-    \item \textbf{Heavy tail}: $P(J > x) = (x_m/x)^\alpha$ (power law decay)
-    \item Common in financial applications for extreme events
-\end{itemize}
-
-\begin{remark}
-The Pareto distribution is characterized by the \textbf{tail index} $\alpha$. Lower $\alpha$ means heavier tails (more extreme events). For financial data, $\alpha \in [2, 4]$ is typical.
-\end{remark}
-
-\paragraph{Weibull Distribution}
-\begin{equation}
-f(x; k, \lambda) = \frac{k}{\lambda}\left(\frac{x}{\lambda}\right)^{k-1} e^{-(x/\lambda)^k}, \quad x \geq 0
-\end{equation}
-
-\textbf{Properties:}
-\begin{itemize}
-    \item $\mathbb{E}[J] = \lambda \Gamma(1 + 1/k)$
-    \item Flexible hazard rate: increasing ($k > 1$), decreasing ($k < 1$), or constant ($k = 1$)
-\end{itemize}
+% Section 3.2.1 moved to Appendix
 
 \subsubsection{Distribution selection methodology}
 
@@ -434,7 +238,7 @@ For each candidate distribution $F_\theta$, we estimate parameters by maximizing
 where $\{J_1, \ldots, J_n\}$ are the observed shock magnitudes.
 
 \paragraph{Akaike Information Criterion (AIC)}
-To compare models with different numbers of parameters:
+To compare models with different numbers of parameters \citep{akaike1974new}:
 \begin{equation}
 \boxed{\text{AIC} = -2 \ln(\hat{L}) + 2k}
 \end{equation}
@@ -443,7 +247,7 @@ where $\hat{L}$ is the maximized likelihood and $k$ is the number of parameters.
 \textbf{Interpretation:} Lower AIC indicates better trade-off between fit and complexity.
 
 \paragraph{Kolmogorov-Smirnov (KS) Test}
-The KS statistic measures the maximum discrepancy between empirical and fitted CDFs:
+The KS statistic \citep{kolmogorov1933sulla,smirnov1948table} measures the maximum discrepancy between empirical and fitted CDFs:
 \begin{equation}
 D_n = \sup_x |F_n(x) - F(x; \hat{\theta})|
 \end{equation}
@@ -469,7 +273,8 @@ Weibull & 2 & 388.9 & 0.095 & 0.068 \\
 \end{table}
 
 \begin{keyresult}
-The \textbf{Pareto distribution} with $\alpha = 2.50$ and $x_{\min} = 0.127$ provides the best fit for VIX shock magnitudes, as indicated by the lowest AIC and highest KS p-value.
+\\
+The \textbf{Pareto distribution} \citep{embrechts1997modelling} with $\alpha = 2.50$ and $x_{\min} = 0.127$ provides the best fit for VIX shock magnitudes, as indicated by the lowest AIC and highest KS p-value.
 \end{keyresult}
 
 % ============================================================
@@ -477,7 +282,7 @@ The \textbf{Pareto distribution} with $\alpha = 2.50$ and $x_{\min} = 0.127$ pro
 % ============================================================
 
 \subsection{Mean dynamics: best ARIMA for $\Delta \log(\mathrm{VIX})$ (by BIC)}
-Let $d_t = \Delta \log(\mathrm{VIX})_t$. The best mean specification selected by BIC is an ARIMA$(1,0,1)$ (i.e., ARMA$(1,1)$) model:
+Let $d_t = \Delta \log(\mathrm{VIX})_t$. The best mean specification selected by BIC \citep{schwarz1978estimating} is an ARIMA$(1,0,1)$ (i.e., ARMA$(1,1)$) model \citep{box2015time}:
 \[
 d_t \;=\; c \;+\; \phi\, d_{t-1} \;+\; \varepsilon_t \;+\; \theta\, \varepsilon_{t-1},
 \]
@@ -491,7 +296,7 @@ c \approx -3.81\times 10^{-5},\quad
 The residual diagnostics indicate non-normality and remaining heteroskedasticity, motivating a conditional volatility model for $\varepsilon_t$.
 
 \subsection{Volatility dynamics: best GARCH-family specification (by BIC)}
-We fit GARCH-family models to the ARMA residuals $\varepsilon_t$ with both normal and Student-\emph{t} innovations. By BIC, the best volatility specification is \textbf{EGARCH$(1,1)$ with Student-\emph{t} innovations}.
+We fit GARCH-family models \citep{bollerslev1986generalized,nelson1991conditional} to the ARMA residuals $\varepsilon_t$ with both normal and Student-\emph{t} innovations. By BIC \citep{schwarz1978estimating}, the best volatility specification is \textbf{EGARCH$(1,1)$ with Student-\emph{t} innovations} \citep{nelson1991conditional}.
 
 \begin{keyresult}
 By BIC, the best volatility specification is \textbf{EGARCH$(1,1)$ with Student-\emph{t} innovations}. This supports time-varying volatility and asymmetric responses of volatility to VIX moves.
@@ -551,7 +356,7 @@ To relate volatility regimes to broader market stress, Figure~\ref{fig:sp500_ega
 \subsection{Value-at-Risk (VaR)}
 
 \begin{definition}[Value-at-Risk]
-The Value-at-Risk at confidence level $\alpha$ for the annual shock impact is:
+The Value-at-Risk at confidence level $\alpha$ for the annual shock impact is \citep{jorion2007value}:
 \begin{equation}
 \boxed{\text{VaR}_\alpha = \inf\{x : P(S(1) \leq x) \geq \alpha\} = F_{S(1)}^{-1}(\alpha)}
 \end{equation}
@@ -570,7 +375,7 @@ The Value-at-Risk at confidence level $\alpha$ for the annual shock impact is:
 \textbf{Interpretation:} CVaR$_{0.95}$ is the expected shock impact in the worst 5\% of years.
 
 \begin{remark}
-CVaR is a \textbf{coherent risk measure}, satisfying subadditivity: $\text{CVaR}(X + Y) \leq \text{CVaR}(X) + \text{CVaR}(Y)$. VaR does not satisfy this property.
+CVaR is a \textbf{coherent risk measure} \citep{artzner1999coherent}, satisfying subadditivity: $\text{CVaR}(X + Y) \leq \text{CVaR}(X) + \text{CVaR}(Y)$. VaR does not satisfy this property.
 \end{remark}
 
 \subsection{Monte Carlo Estimation}
@@ -819,72 +624,6 @@ The CPP model demonstrates reasonable out-of-sample performance:
 \end{figure}
 
 % ============================================================
-\section{Connection to Other Models}
-% ============================================================
-
-\subsection{CPP vs. Hawkes Process}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{lcc}
-\toprule
-Aspect & Hawkes & Compound Poisson \\
-\midrule
-Models timing? & Yes & Yes \\
-Models magnitude? & No & \textbf{Yes} \\
-Self-excitation? & \textbf{Yes} & No \\
-Arrival rate & Time-varying & Constant \\
-Risk quantification & Limited & \textbf{VaR/CVaR} \\
-\bottomrule
-\end{tabular}
-\caption{Comparison of Hawkes and Compound Poisson Process capabilities.}
-\end{table}
-
-\subsection{Potential Extensions}
-
-\begin{enumerate}
-    \item \textbf{Hawkes-Compound Process}: Replace Poisson arrivals with Hawkes arrivals:
-    \begin{equation}
-    S(t) = \sum_{i=1}^{N_H(t)} J_i
-    \end{equation}
-    where $N_H(t)$ follows a Hawkes process. This captures both self-excitation and jump magnitudes.
-    
-    \item \textbf{Marked Hawkes Process}: Make jump size depend on history:
-    \begin{equation}
-    J_i | \mathcal{F}_{t_i^-} \sim F(\cdot; \lambda(t_i^-))
-    \end{equation}
-    
-    \item \textbf{Regime-Switching CPP}: Allow $(\lambda, F)$ to depend on a latent regime variable.
-\end{enumerate}
-
-% ============================================================
-\section{Practical Implications}
-% ============================================================
-
-\subsection{Risk Management}
-
-\begin{enumerate}
-    \item \textbf{Capital Allocation}: Use VaR/CVaR estimates to set aside appropriate capital buffers for VIX-related exposures.
-    
-    \item \textbf{Stress Testing}: The regime-specific parameters provide realistic scenarios:
-    \begin{itemize}
-        \item Normal year: $\mathbb{E}[S] \approx 2.6$, VaR $\approx 4.2$
-        \item Crisis year: $\mathbb{E}[S] \approx 4.5$, VaR $\approx 7.4$
-    \end{itemize}
-    
-    \item \textbf{Dynamic Hedging}: As regime shifts are detected, adjust hedge ratios based on regime-specific $\mathbb{E}[S]$ and VaR.
-\end{enumerate}
-
-\subsection{Derivatives Pricing}
-
-The CPP framework is directly applicable to pricing VIX derivatives:
-\begin{itemize}
-    \item \textbf{VIX Options}: The heavy-tailed Pareto distribution justifies out-of-the-money option premiums.
-    \item \textbf{Variance Swaps}: $\mathbb{E}[S]$ relates to expected future variance.
-    \item \textbf{Corridor Variance Swaps}: Regime-specific parameters inform fair pricing across market conditions.
-\end{itemize}
-
-% ============================================================
 \section{Conclusion}
 % ============================================================
 
@@ -910,8 +649,211 @@ The Compound Poisson Process provides a powerful framework for modeling VIX shoc
 The mathematical elegance of the CPP---combined with its empirical out-of-sample validity and practical applicability---makes it an essential tool for volatility risk management. In parallel, ARIMA + GARCH-family models provide a complementary view of \emph{continuous} volatility dynamics: model selection favors EGARCH$(1,1)$ with Student-\emph{t} innovations, and estimated half-lives indicate that volatility shocks decay over roughly one trading week.
 
 % ============================================================
-\section*{Appendix: Key Formulas Summary}
+\section*{Appendix}
 % ============================================================
+
+\subsection{Mathematical foundations of the Compound Poisson Process}
+
+\subsubsection{Definition of the Compound Poisson Process}
+
+\begin{definition}[Compound Poisson Process]
+A \textbf{Compound Poisson Process} $\{S(t) : t \geq 0\}$ \citep{cont2004financial,ross2014introduction} is defined as:
+\begin{equation}
+\boxed{S(t) = \sum_{i=1}^{N(t)} J_i}
+\end{equation}
+where:
+\begin{itemize}
+    \item $N(t) \sim \text{Poisson}(\lambda t)$ is a counting process representing the number of shocks by time $t$
+    \item $\{J_i\}_{i=1}^{\infty}$ is a sequence of i.i.d.\ random variables representing jump sizes
+    \item $J_i \sim F$ for some distribution $F$ with $\mathbb{E}[J] = \mu_J$ and $\text{Var}(J) = \sigma_J^2$
+    \item $N(t)$ and $\{J_i\}$ are independent
+\end{itemize}
+\end{definition}
+
+\begin{remark}
+The convention is $S(t) = 0$ when $N(t) = 0$ (i.e., an empty sum equals zero).
+\end{remark}
+
+\subsubsection{Interpretation for VIX Shocks}
+
+In our application:
+\begin{itemize}
+    \item $S(t)$ = Cumulative shock impact (sum of absolute log-changes) by time $t$
+    \item $N(t)$ = Number of VIX shocks by time $t$
+    \item $J_i$ = Magnitude of the $i$-th shock: $J_i = |\Delta \log(\text{VIX})_{t_i}|$
+    \item $\lambda$ = Shock arrival rate (shocks per unit time)
+\end{itemize}
+
+\subsubsection{Distributional Properties}
+
+\paragraph{Mean of the Compound Poisson Process}
+
+\begin{theorem}[Expected Value]
+The expected value of $S(t)$ is:
+\begin{equation}
+\boxed{\mathbb{E}[S(t)] = \lambda t \cdot \mathbb{E}[J]}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Using the law of total expectation, conditioning on $N(t)$:
+\begin{align}
+\mathbb{E}[S(t)] &= \mathbb{E}\left[\mathbb{E}\left[\sum_{i=1}^{N(t)} J_i \,\Big|\, N(t)\right]\right] \\
+&= \mathbb{E}\left[N(t) \cdot \mathbb{E}[J]\right] \quad \text{(since $J_i$ are i.i.d.\ and independent of $N(t)$)} \\
+&= \mathbb{E}[N(t)] \cdot \mathbb{E}[J] \\
+&= \lambda t \cdot \mathbb{E}[J]
+\end{align}
+\end{proof}
+
+\begin{remark}
+This elegant result shows that the expected cumulative impact grows linearly in time, with rate $\lambda \cdot \mathbb{E}[J]$.
+\end{remark}
+
+\paragraph{Variance of the Compound Poisson Process}
+
+\begin{theorem}[Variance]
+The variance of $S(t)$ is:
+\begin{equation}
+\boxed{\text{Var}(S(t)) = \lambda t \cdot \mathbb{E}[J^2]}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Using the law of total variance:
+\begin{equation}
+\text{Var}(S(t)) = \mathbb{E}[\text{Var}(S(t) | N(t))] + \text{Var}(\mathbb{E}[S(t) | N(t)])
+\end{equation}
+
+For the first term, conditional on $N(t) = n$:
+\begin{equation}
+\text{Var}(S(t) | N(t) = n) = n \cdot \text{Var}(J) = n \cdot \sigma_J^2
+\end{equation}
+
+Thus:
+\begin{equation}
+\mathbb{E}[\text{Var}(S(t) | N(t))] = \mathbb{E}[N(t)] \cdot \sigma_J^2 = \lambda t \cdot \sigma_J^2
+\end{equation}
+
+For the second term:
+\begin{equation}
+\mathbb{E}[S(t) | N(t) = n] = n \cdot \mathbb{E}[J] = n \cdot \mu_J
+\end{equation}
+
+So:
+\begin{equation}
+\text{Var}(\mathbb{E}[S(t) | N(t)]) = \mu_J^2 \cdot \text{Var}(N(t)) = \mu_J^2 \cdot \lambda t
+\end{equation}
+
+Combining:
+\begin{align}
+\text{Var}(S(t)) &= \lambda t \cdot \sigma_J^2 + \lambda t \cdot \mu_J^2 \\
+&= \lambda t \cdot (\sigma_J^2 + \mu_J^2) \\
+&= \lambda t \cdot \mathbb{E}[J^2]
+\end{align}
+\end{proof}
+
+\paragraph{Moment Generating Function}
+
+\begin{theorem}[MGF of Compound Poisson]
+The moment generating function of $S(t)$ is:
+\begin{equation}
+\boxed{M_{S(t)}(\theta) = \mathbb{E}[e^{\theta S(t)}] = \exp\left(\lambda t \cdot (M_J(\theta) - 1)\right)}
+\end{equation}
+where $M_J(\theta) = \mathbb{E}[e^{\theta J}]$ is the MGF of the jump size distribution.
+\end{theorem}
+
+\begin{proof}
+Conditioning on $N(t)$:
+\begin{align}
+M_{S(t)}(\theta) &= \mathbb{E}[e^{\theta S(t)}] \\
+&= \sum_{n=0}^{\infty} \mathbb{E}[e^{\theta S(t)} | N(t) = n] \cdot P(N(t) = n) \\
+&= \sum_{n=0}^{\infty} \mathbb{E}\left[e^{\theta \sum_{i=1}^{n} J_i}\right] \cdot \frac{(\lambda t)^n e^{-\lambda t}}{n!} \\
+&= \sum_{n=0}^{\infty} (M_J(\theta))^n \cdot \frac{(\lambda t)^n e^{-\lambda t}}{n!} \\
+&= e^{-\lambda t} \sum_{n=0}^{\infty} \frac{(\lambda t \cdot M_J(\theta))^n}{n!} \\
+&= e^{-\lambda t} \cdot e^{\lambda t \cdot M_J(\theta)} \\
+&= \exp(\lambda t \cdot (M_J(\theta) - 1))
+\end{align}
+\end{proof}
+
+\paragraph{Characteristic Function}
+
+The characteristic function is similarly:
+\begin{equation}
+\phi_{S(t)}(u) = \exp\left(\lambda t \cdot (\phi_J(u) - 1)\right)
+\end{equation}
+where $\phi_J(u) = \mathbb{E}[e^{iuJ}]$ is the characteristic function of $J$.
+
+\subsection{Jump size distributions}
+
+The choice of jump size distribution $F$ is critical. We consider several candidates:
+
+\paragraph{Exponential Distribution}
+\begin{equation}
+f(x; \lambda_J) = \lambda_J e^{-\lambda_J x}, \quad x \geq 0
+\end{equation}
+
+\textbf{Properties:}
+\begin{itemize}
+    \item $\mathbb{E}[J] = 1/\lambda_J$
+    \item $\text{Var}(J) = 1/\lambda_J^2$
+    \item Memoryless property: $P(J > s + t | J > s) = P(J > t)$
+\end{itemize}
+
+\textbf{Limitation:} Light tails; may underestimate extreme shocks.
+
+\paragraph{Gamma Distribution}
+\begin{equation}
+f(x; k, \theta) = \frac{x^{k-1} e^{-x/\theta}}{\theta^k \Gamma(k)}, \quad x \geq 0
+\end{equation}
+
+\textbf{Properties:}
+\begin{itemize}
+    \item $\mathbb{E}[J] = k\theta$
+    \item $\text{Var}(J) = k\theta^2$
+    \item Flexible shape: $k < 1$ (decreasing density), $k > 1$ (mode at $(k-1)\theta$)
+\end{itemize}
+
+\paragraph{Lognormal Distribution}
+\begin{equation}
+f(x; \mu, \sigma) = \frac{1}{x\sigma\sqrt{2\pi}} \exp\left(-\frac{(\ln x - \mu)^2}{2\sigma^2}\right), \quad x > 0
+\end{equation}
+
+\textbf{Properties:}
+\begin{itemize}
+    \item $\mathbb{E}[J] = e^{\mu + \sigma^2/2}$
+    \item $\text{Var}(J) = (e^{\sigma^2} - 1) e^{2\mu + \sigma^2}$
+    \item Natural for multiplicative processes
+\end{itemize}
+
+\paragraph{Pareto Distribution}
+\begin{equation}
+\boxed{f(x; \alpha, x_m) = \frac{\alpha x_m^\alpha}{x^{\alpha+1}}, \quad x \geq x_m}
+\end{equation}
+
+\textbf{Properties:}
+\begin{itemize}
+    \item $\mathbb{E}[J] = \frac{\alpha x_m}{\alpha - 1}$ for $\alpha > 1$
+    \item $\text{Var}(J) = \frac{x_m^2 \alpha}{(\alpha-1)^2(\alpha-2)}$ for $\alpha > 2$
+    \item \textbf{Heavy tail}: $P(J > x) = (x_m/x)^\alpha$ (power law decay)
+    \item Common in financial applications for extreme events \citep{embrechts1997modelling}
+\end{itemize}
+
+\begin{remark}
+The Pareto distribution is characterized by the \textbf{tail index} $\alpha$. Lower $\alpha$ means heavier tails (more extreme events). For financial data, $\alpha \in [2, 4]$ is typical \citep{embrechts1997modelling}.
+\end{remark}
+
+\paragraph{Weibull Distribution}
+\begin{equation}
+f(x; k, \lambda) = \frac{k}{\lambda}\left(\frac{x}{\lambda}\right)^{k-1} e^{-(x/\lambda)^k}, \quad x \geq 0
+\end{equation}
+
+\textbf{Properties:}
+\begin{itemize}
+    \item $\mathbb{E}[J] = \lambda \Gamma(1 + 1/k)$
+    \item Flexible hazard rate: increasing ($k > 1$), decreasing ($k < 1$), or constant ($k = 1$)
+\end{itemize}
+
+\subsection{Key Formulas Summary}
 
 \begin{table}[H]
 \centering
@@ -937,10 +879,24 @@ CVaR Definition & $\text{CVaR}_\alpha = \mathbb{E}[S(T) | S(T) \geq \text{VaR}_\
 % ============================================================
 
 \begin{itemize}
+    \item Akaike, H. (1974). A new look at the statistical model identification. \textit{IEEE Transactions on Automatic Control}, 19(6), 716--723.
+    \item Artzner, P., Delbaen, F., Eber, J. M., \& Heath, D. (1999). Coherent measures of risk. \textit{Mathematical Finance}, 9(3), 203--228.
+    \item Bollerslev, T. (1986). Generalized autoregressive conditional heteroskedasticity. \textit{Journal of Econometrics}, 31(3), 307--327.
+    \item Box, G. E. P., \& Jenkins, G. M. (2015). \textit{Time Series Analysis: Forecasting and Control} (5th ed.). John Wiley \& Sons.
     \item Cont, R., \& Tankov, P. (2004). \textit{Financial Modelling with Jump Processes}. Chapman \& Hall/CRC.
-    \item McNeil, A. J., Frey, R., \& Embrechts, P. (2015). \textit{Quantitative Risk Management: Concepts, Techniques and Tools}. Princeton University Press.
-    \item Ross, S. M. (2014). \textit{Introduction to Probability Models}. Academic Press.
+    \item Dickey, D. A., \& Fuller, W. A. (1979). Distribution of the estimators for autoregressive time series with a unit root. \textit{Journal of the American Statistical Association}, 74(366), 427--431.
+    \item Embrechts, P., Kl\"uppelberg, C., \& Mikosch, T. (1997). \textit{Modelling Extremal Events: For Insurance and Finance}. Springer.
+    \item Engle, R. F. (1982). Autoregressive conditional heteroscedasticity with estimates of the variance of United Kingdom inflation. \textit{Econometrica}, 50(4), 987--1007.
+    \item Hawkes, A. G. (1971). Spectra of some self-exciting and mutually exciting point processes. \textit{Biometrika}, 58(1), 83--90.
+    \item Jorion, P. (2007). \textit{Value at Risk: The New Benchmark for Managing Financial Risk} (3rd ed.). McGraw-Hill.
+    \item Kolmogorov, A. N. (1933). Sulla determinazione empirica di una legge di distribuzione. \textit{Giornale dell'Istituto Italiano degli Attuari}, 4, 83--91.
+    \item Kwiatkowski, D., Phillips, P. C. B., Schmidt, P., \& Shin, Y. (1992). Testing the null hypothesis of stationarity against the alternative of a unit root: How sure are we that economic time series have a unit root? \textit{Journal of Econometrics}, 54(1-3), 159--178.
     \item Madan, D. B., \& Seneta, E. (1990). The variance gamma model for share market returns. \textit{Journal of Business}, 63(4), 511--524.
+    \item McNeil, A. J., Frey, R., \& Embrechts, P. (2015). \textit{Quantitative Risk Management: Concepts, Techniques and Tools}. Princeton University Press.
+    \item Nelson, D. B. (1991). Conditional heteroskedasticity in asset returns: A new approach. \textit{Econometrica}, 59(2), 347--370.
+    \item Ross, S. M. (2014). \textit{Introduction to Probability Models} (11th ed.). Academic Press.
+    \item Schwarz, G. (1978). Estimating the dimension of a model. \textit{Annals of Statistics}, 6(2), 461--464.
+    \item Smirnov, N. V. (1948). Table for estimating the goodness of fit of empirical distributions. \textit{Annals of Mathematical Statistics}, 19(2), 279--281.
 \end{itemize}
 
 \end{document}
