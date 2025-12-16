@@ -37,6 +37,7 @@ reports/
 *.synctex.gz
 *.bbl
 *.blg
+*.bib
 
 # MacOS
 .DS_Store

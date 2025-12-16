@@ -39,8 +39,16 @@ Shock-Persistence-and-Shock-Frequency-in-VIX/
 │   ├── 01_data_and_volatility.ipynb
 │   ├── 02_shock_arrivals.ipynb
 │   └── 03_forecast_evaluation.ipynb
-├── figures/                   # Generated plots
-├── zz slides/                 # LaTeX presentation and CPP report
+├── figures/                   # Generated plots (organized by category)
+│   ├── vix_data/              # VIX time series and ACF plots
+│   ├── volatility_models/     # GARCH/EGARCH volatility outputs
+│   ├── shock_analysis/        # Shock detection and analysis
+│   ├── cpp_model/             # Compound Poisson Process figures
+│   └── model_evaluation/       # Model diagnostics and comparisons
+├── zz slides/                 # LaTeX documents
+│   ├── report.tex             # Main CPP report (renamed from CPP_VIX_Shock_Modeling_Report.tex)
+│   ├── slides.tex             # Beamer presentation (renamed from main.tex)
+│   └── references.bib         # Bibliography file
 ├── tests/                     # Unit tests
 └── requirements.txt
 ```
@@ -125,16 +133,23 @@ $$S(T) = \sum_{i=1}^{N(T)} J_i, \quad N(T) \sim \text{Poisson}(\lambda T)$$
 
 ## Generated Figures
 
-| Figure | Description |
-|--------|-------------|
-| `vix_series.png` | VIX time series with shock markers |
-| `news_impact.png` | EGARCH asymmetric response |
-| `qq.png` | Q-Q plot (GED fit validation) |
-| `jump_distribution.png` | Pareto fit to shock magnitudes |
-| `cpp_paths.png` | Monte Carlo simulated paths |
-| `cpp_var.png` | VaR/CVaR distribution |
-| `cpp_regime.png` | Regime-specific CPP parameters |
-| `cpp_forecast.png` | Out-of-sample evaluation |
+Figures are organized into subfolders by category:
+
+- **`vix_data/`**: VIX time series, visualization, and autocorrelation plots
+- **`volatility_models/`**: GARCH/EGARCH conditional volatility overlays
+- **`shock_analysis/`**: Shock detection, counts, magnitudes, and interarrival analysis
+- **`cpp_model/`**: Compound Poisson Process figures (paths, VaR, regime analysis, forecasts)
+- **`model_evaluation/`**: Model diagnostics (Q-Q plots, PIT, ACF, comparisons)
+
+Key figures:
+- `vix_data/vix_series.png` - VIX time series with shock markers
+- `model_evaluation/news_impact.png` - EGARCH asymmetric response
+- `model_evaluation/qq.png` - Q-Q plot (GED fit validation)
+- `cpp_model/jump_distribution.png` - Pareto fit to shock magnitudes
+- `cpp_model/cpp_paths.png` - Monte Carlo simulated paths
+- `cpp_model/cpp_var.png` - VaR/CVaR distribution
+- `cpp_model/cpp_regime.png` - Regime-specific CPP parameters
+- `cpp_model/cpp_forecast.png` - Out-of-sample evaluation
 
 ## References
 

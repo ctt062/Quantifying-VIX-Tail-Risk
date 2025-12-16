@@ -110,17 +110,26 @@ Models **both** shock timing (Poisson arrivals) AND magnitude (jump sizes).
 
 ## 6. Generated Figures
 
-| Figure | Description |
-| --- | --- |
-| `vix_series.png` | VIX time series with shock markers |
-| `news_impact.png` | EGARCH asymmetric response curve |
-| `qq.png` | Q-Q plot (GED captures fat tails) |
-| `jump_distribution.png` | Pareto fit to shock magnitudes |
-| `cpp_paths.png` | Monte Carlo simulated paths |
-| `cpp_var.png` | VaR/CVaR distribution |
-| `cpp_regime.png` | Regime-specific CPP parameters |
-| `cpp_forecast.png` | Out-of-sample evaluation |
-| `regime_comparison.png` | Shock rates by regime |
+Figures are organized into subfolders by category for better organization:
+
+- **`vix_data/`**: VIX time series, visualization, and autocorrelation plots
+- **`volatility_models/`**: GARCH/EGARCH conditional volatility overlays  
+- **`shock_analysis/`**: Shock detection, counts, magnitudes, and interarrival analysis
+- **`cpp_model/`**: Compound Poisson Process figures (paths, VaR, regime analysis, forecasts)
+- **`model_evaluation/`**: Model diagnostics (Q-Q plots, PIT, ACF, comparisons)
+
+Key figures:
+| Figure | Location | Description |
+| --- | --- | --- |
+| `vix_series.png` | `vix_data/` | VIX time series with shock markers |
+| `news_impact.png` | `model_evaluation/` | EGARCH asymmetric response curve |
+| `qq.png` | `model_evaluation/` | Q-Q plot (GED captures fat tails) |
+| `jump_distribution.png` | `cpp_model/` | Pareto fit to shock magnitudes |
+| `cpp_paths.png` | `cpp_model/` | Monte Carlo simulated paths |
+| `cpp_var.png` | `cpp_model/` | VaR/CVaR distribution |
+| `cpp_regime.png` | `cpp_model/` | Regime-specific CPP parameters |
+| `cpp_forecast.png` | `cpp_model/` | Out-of-sample evaluation |
+| `regime_comparison.png` | `model_evaluation/` | Shock rates by regime |
 
 ## 7. Key Conclusions
 
